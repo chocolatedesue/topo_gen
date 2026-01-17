@@ -294,7 +294,11 @@ class FileSystemManager:
             "name": f"{protocol_suffix.replace('_', '-')}-{topo_suffix}{config.size}x{config.size}",
             "mgmt": {
                 "ipv4-subnet": "auto",
-                "ipv6-subnet": "auto"
+                "ipv6-subnet": "auto",
+                "keep-mgmt-net": True  # 销毁实验时保留管理网桥 (clab 网桥不被删除)
+            },
+            "settings": {
+                "graceful-shutdown": False  # 禁用优雅停机，直接强制删除 (Force Remove)
             },
             "topology": {
                 "defaults": {

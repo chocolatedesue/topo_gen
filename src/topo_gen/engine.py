@@ -9,10 +9,12 @@ from typing import List
 from pathlib import Path
 import anyio
 
-from .core.types import Coordinate, Direction, NeighborMap, Failure
+from .core.types import (
+    Coordinate, Direction, NeighborMap, Failure, NodeType
+)
 from .core.models import (
     TopologyConfig, RouterInfo, SystemRequirements, GenerationResult,
-    NetworkConfig, NodeType
+    NetworkConfig
 )
 from .filesystem import (
     create_all_directories, create_all_template_files,

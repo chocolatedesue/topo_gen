@@ -13,7 +13,8 @@ from .core.types import (
     Coordinate, Direction, RouterName, InterfaceName, IPv6Address,
     INTERFACE_MAPPING, REVERSE_DIRECTION
 )
-from .core.models import TopologyConfig, RouterInfo, TopologyType
+from .core.types import TopologyType
+from .core.models import TopologyConfig, RouterInfo
 from .utils.topo import get_topology_type_str
 from .utils.direction import calculate_direction
 from .topology.grid import get_grid_neighbors as grid_neighbors_factory
