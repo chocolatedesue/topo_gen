@@ -262,17 +262,19 @@ class FileSystemManager:
         # 生成节点配置
         nodes = {}
         for router in routers:
-            nodes[router.name] = {
+            node_def = {
                 "kind": "linux",
                 # "image": "docker.cnb.cool/jmncnic/frrbgpls/origin:latest",
                 # "image": "quay.io/frrouting/frr:10.3.1",
                 "image" : "docker.cnb.cool/jmncnic/frrbgpls/origin",
-                "network-mode": "none",
                 "binds": [
                     f"etc/{router.name}/conf:/etc/frr",
                     f"etc/{router.name}/log:/var/log/frr",
                 ]
             }
+            if not config.podman:
+                node_def["network-mode"] = "none"
+            nodes[router.name] = node_def
 
         # 生成链路配置
         clab_links = []
@@ -293,8 +295,9 @@ class FileSystemManager:
         clab_config = {
             "name": f"{protocol_suffix.replace('_', '-')}-{topo_suffix}{config.size}x{config.size}",
             "mgmt": {
-                "ipv4-subnet": "auto",
-                "ipv6-subnet": "auto",
+                "ipv4-subnet": "10.0.0.0/16",
+                "ipv6-subnet": "2001:db8::/64",
+                "external-access": False, # 用户指定方便调试
             },
             "topology": {
                 "defaults": {

@@ -84,6 +84,7 @@ class TopologyConfig(BaseConfig):
 
     # 拓扑控制
     no_links: bool = Field(default=False, description="仅生成节点，不生成链路（Containerlab配置中不包含links部分）")
+    podman: bool = Field(default=False, description="为Podman运行时优化配置（移除 incompatible fields 如 network-mode）")
 
     @field_validator('dummy_gen_protocols')
     @classmethod
