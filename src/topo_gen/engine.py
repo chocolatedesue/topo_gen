@@ -22,6 +22,7 @@ from .filesystem import (
 )
 from .links import generate_interface_mappings, convert_links_to_clab_format, generate_loopback_ipv6
 from .topology.special import filter_routers_for_special_topology
+from .topology.strategies import TopologyStrategy
 from .utils.topo import get_topology_type_str
 
 
@@ -153,99 +154,22 @@ class TopologyEngine:
         )
     
     def _get_node_type(self, coord: Coordinate, config: TopologyConfig) -> NodeType:
-        """获取节点类型"""
-        topo_type = get_topology_type_str(config.topology_type)
-        if topo_type == "grid":
-            return self._get_grid_node_type(coord, config.size)
-        elif topo_type == "strip":
-            return self._get_strip_node_type(coord, config.size)
-        elif topo_type == "torus":
-            return NodeType.INTERNAL  # Torus中所有节点都是内部节点
-        elif topo_type == "special" and config.special_config:
-            return self._get_special_node_type(coord, config.special_config)
-        else:
-            return NodeType.INTERNAL
-
-    def _get_special_node_type(self, coord: Coordinate, special_config) -> NodeType:
-        """获取Special拓扑的节点类型"""
-        if coord == special_config.source_node:
-            return NodeType.SOURCE
-        elif coord == special_config.dest_node:
-            return NodeType.DESTINATION
-        elif coord in special_config.gateway_nodes:
-            return NodeType.GATEWAY
-        else:
-            return NodeType.INTERNAL
-    
-    def _get_grid_node_type(self, coord: Coordinate, size: int) -> NodeType:
-        """获取Grid节点类型"""
-        row, col = coord.row, coord.col
-        
-        # 角点
-        if (row, col) in [(0, 0), (0, size-1), (size-1, 0), (size-1, size-1)]:
-            return NodeType.CORNER
-        # 边缘
-        elif row == 0 or row == size-1 or col == 0 or col == size-1:
-            return NodeType.EDGE
-        # 内部
-        else:
-            return NodeType.INTERNAL
-
-    def _get_strip_node_type(self, coord: Coordinate, size: int) -> NodeType:
-        """获取Strip节点类型"""
-        if coord.col == 0 or coord.col == size - 1:
-            return NodeType.EDGE
-        return NodeType.INTERNAL
+        """获取节点类型 - 使用统一策略接口"""
+        return TopologyStrategy.get_node_type(
+            coord,
+            config.topology_type,
+            config.size,
+            config.special_config
+        )
     
     def _get_neighbors(self, coord: Coordinate, config: TopologyConfig) -> NeighborMap:
-        """获取邻居节点"""
-        topo_type = get_topology_type_str(config.topology_type)
-        if topo_type == "grid":
-            return self._get_grid_neighbors(coord, config.size)
-        elif topo_type == "strip":
-            return self._get_strip_neighbors(coord, config.size)
-        elif topo_type == "torus":
-            return self._get_torus_neighbors(coord, config.size)
-        else:
-            return {}
-    
-    def _get_grid_neighbors(self, coord: Coordinate, size: int) -> NeighborMap:
-        """获取Grid邻居"""
-        neighbors = {}
-        row, col = coord.row, coord.col
-        
-        if row > 0:
-            neighbors[Direction.NORTH] = Coordinate(row - 1, col)
-        if row < size - 1:
-            neighbors[Direction.SOUTH] = Coordinate(row + 1, col)
-        if col > 0:
-            neighbors[Direction.WEST] = Coordinate(row, col - 1)
-        if col < size - 1:
-            neighbors[Direction.EAST] = Coordinate(row, col + 1)
-        
-        return neighbors
-    
-    def _get_torus_neighbors(self, coord: Coordinate, size: int) -> NeighborMap:
-        """获取Torus邻居"""
-        row, col = coord.row, coord.col
-        return {
-            Direction.NORTH: Coordinate((row - 1 + size) % size, col),
-            Direction.SOUTH: Coordinate((row + 1) % size, col),
-            Direction.WEST: Coordinate(row, (col - 1 + size) % size),
-            Direction.EAST: Coordinate(row, (col + 1) % size)
-        }
-
-    def _get_strip_neighbors(self, coord: Coordinate, size: int) -> NeighborMap:
-        """获取Strip邻居（纵向环绕，横向开放）"""
-        neighbors = {
-            Direction.NORTH: Coordinate((coord.row - 1 + size) % size, coord.col),
-            Direction.SOUTH: Coordinate((coord.row + 1) % size, coord.col),
-        }
-        if coord.col > 0:
-            neighbors[Direction.WEST] = Coordinate(coord.row, coord.col - 1)
-        if coord.col < size - 1:
-            neighbors[Direction.EAST] = Coordinate(coord.row, coord.col + 1)
-        return neighbors
+        """获取邻居节点 - 使用统一策略接口"""
+        neighbors_func = TopologyStrategy.get_neighbors_func(
+            config.topology_type,
+            config.size,
+            config.special_config
+        )
+        return neighbors_func(coord)
     
     def _calculate_area_id(self, coord: Coordinate, config: TopologyConfig) -> str:
         """计算区域ID"""

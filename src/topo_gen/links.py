@@ -103,23 +103,9 @@ def generate_link_ipv6(size: int, coord1: Coordinate, coord2: Coordinate) -> Lin
 
 
 def get_neighbors_func(topology_type: TopologyType, size: int, special_config=None):
-    """获取邻居函数（统一使用 topology 工厂/工具函数）。"""
-    if topology_type == TopologyType.GRID:
-        grid_neighbors = grid_neighbors_factory(size)
-        return lambda coord: grid_neighbors(coord)
-    elif topology_type == TopologyType.TORUS:
-        torus_neighbors = torus_neighbors_factory(size)
-        return lambda coord: torus_neighbors(coord)
-    elif topology_type == TopologyType.STRIP:
-        strip_neighbors = strip_neighbors_factory(size)
-        return lambda coord: strip_neighbors(coord)
-    elif topology_type == TopologyType.SPECIAL and special_config:
-        # 使用 SpecialTopology 以便与 topology.special 的逻辑保持一致
-        topo = SpecialTopology(TopologyType.SPECIAL)
-        return lambda coord: topo.get_neighbors(coord, size, special_config)
-    else:
-        grid_neighbors = grid_neighbors_factory(size)
-        return lambda coord: grid_neighbors(coord)
+    """获取邻居函数（使用统一策略）"""
+    from .topology.strategies import TopologyStrategy
+    return TopologyStrategy.get_neighbors_func(topology_type, size, special_config)
 
 
 # 统一后，links 模块不再维护自己的 grid/torus 邻居计算，
