@@ -292,6 +292,10 @@ class FileSystemManager:
         protocol_suffix = get_protocol_suffix(config)
         clab_config = {
             "name": f"{protocol_suffix.replace('_', '-')}-{topo_suffix}{config.size}x{config.size}",
+            "mgmt": {
+                "ipv4-subnet": "auto",
+                "ipv6-subnet": "auto"
+            },
             "topology": {
                 "defaults": {
                     # 限制所有容器 CPU 亲和性到 0~cpus-1，单容器上限 1.0 vCPU，内存上限 512MB
