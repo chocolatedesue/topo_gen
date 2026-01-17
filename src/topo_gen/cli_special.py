@@ -45,6 +45,7 @@ def generate_special(
     spf_delay: int = typer.Option(20, "--spf-delay", help="SPF延迟(ms)"),
     lsa_min_arrival: int = typer.Option(1000, "--lsa-min-arrival", help="OSPF LSA最小到达间隔(毫秒)"),
     maximum_paths: int = typer.Option(1, "--maximum-paths", help="OSPF ECMP最大路径数"),
+    lsa_only: bool = typer.Option(False, "--lsa-only", help="仅交换LSA模式 (除第一个路由器件外，其他路由器延迟SPF计算)"),
     # ISIS 配置
     isis_fast_convergence: bool = typer.Option(False, "--isis-fast-convergence", help="ISIS快速收敛模式(hello=1s,multiplier=5,lsp-gen=2s)"),
     isis_hello_interval: int = typer.Option(1, "--isis-hello-interval", help="ISIS Hello间隔(秒)"),
@@ -121,6 +122,7 @@ def generate_special(
                     spf_delay=spf_delay,
                     lsa_min_arrival=lsa_min_arrival,
                     maximum_paths=maximum_paths,
+                    lsa_only_mode=lsa_only,
                 )
                 if enable_ospf6
                 else None

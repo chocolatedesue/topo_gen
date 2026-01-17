@@ -36,6 +36,7 @@ docker exec -it clab-ospf6-torus3x3-router_00_00 vtysh
 - uv (Python包管理器)
 - Docker
 - ContainerLab
+- [可选] Nix (推荐用于环境管理，详见 [Nix 环境指南](NIX_GUIDE.md))
 
 ### 安装uv
 
@@ -213,25 +214,31 @@ uv run topo-gen generate grid 3 --no-config ospf6d -y
 
 ### 部署拓扑
 
+本项目生成的拓扑配置目前对 **Docker** 支持最完善：
+
 ```bash
 # 进入生成的目录
 cd ospf6_torus3x3
 
 # 部署
-containerlab deploy -t ospf6_torus3x3.clab.yaml
+sudo containerlab deploy -t ospf6_torus3x3.clab.yaml
 
 # 查看状态
-containerlab inspect -t ospf6_torus3x3.clab.yaml
+sudo containerlab inspect -t ospf6_torus3x3.clab.yaml
+```
+
+> [!TIP]
+> 若需使用 **Podman**，可以通过 `--runtime podman` 参数指定，或设置环境变量 `export CLAB_RUNTIME=podman`。请注意 Podman 在 `network-mode: none` 下的兼容性。
 ```
 
 ### 销毁拓扑
 
 ```bash
 # 销毁拓扑
-containerlab destroy -t ospf6_torus3x3.clab.yaml
+sudo containerlab destroy --runtime podman -t ospf6_torus3x3.clab.yaml
 
 # 强制销毁（清理所有资源）
-containerlab destroy -t ospf6_torus3x3.clab.yaml --cleanup
+sudo containerlab destroy --runtime podman -t ospf6_torus3x3.clab.yaml --cleanup
 ```
 
 ### 访问路由器

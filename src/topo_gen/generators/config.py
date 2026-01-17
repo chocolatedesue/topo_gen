@@ -70,6 +70,13 @@ def _build_ospf_context(router_info: RouterInfo, config: TopologyConfig) -> Dict
         from ..core.types import ensure_ipv6_prefix
         loopback_range = ensure_ipv6_prefix(str(router_info.loopback_ipv6), 128)
 
+    # 处理特殊的 LSA-only 测试模式
+    spf_throttle = None
+    if ospf_config.lsa_only_mode:
+        # 第一个路由器 (0,0) 保持正常，其他路由器设置超大延迟以“不运行SPF”
+        if router_info.coordinate.row != 0 or router_info.coordinate.col != 0:
+            spf_throttle = "600000 600000 600000"
+
     return {
         "router_name": router_info.name,
         "disable_logging": config.disable_logging,
@@ -79,6 +86,7 @@ def _build_ospf_context(router_info: RouterInfo, config: TopologyConfig) -> Dict
         "router": {
             "router_id": router_info.router_id,
             "spf_delay": ospf_config.spf_delay,
+            "spf_throttle": spf_throttle,
             "lsa_min_arrival": ospf_config.lsa_min_arrival,
             "maximum_paths": ospf_config.maximum_paths,
         },

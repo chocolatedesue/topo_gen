@@ -266,6 +266,7 @@ def generate_topology_command(
     spf_delay: int = typer.Option(OSPF_DEFAULT_SPF_DELAY_MS, "--spf-delay", help="SPF延迟(ms)"),
     lsa_min_arrival: int = typer.Option(OSPF_DEFAULT_LSA_MIN_ARRIVAL_MS, "--lsa-min-arrival", help="OSPF LSA最小到达间隔(毫秒)"),
     maximum_paths: int = typer.Option(OSPF_DEFAULT_MAXIMUM_PATHS, "--maximum-paths", help="OSPF ECMP最大路径数 (默认: 1)"),
+    lsa_only: bool = typer.Option(False, "--lsa-only", help="仅交换LSA模式 (除第一个路由器件外，其他路由器延迟SPF计算)"),
     # ISIS 配置选项
     isis_fast_convergence: bool = typer.Option(False, "--isis-fast-convergence", help="ISIS快速收敛模式(hello=1s,multiplier=5,lsp-gen=2s)"),
     isis_hello_interval: int = typer.Option(ISIS_DEFAULT_HELLO_INTERVAL, "--isis-hello-interval", help="ISIS Hello间隔(秒)"),
@@ -323,6 +324,7 @@ def generate_topology_command(
                 spf_delay=spf_delay,
                 lsa_min_arrival=lsa_min_arrival,
                 maximum_paths=maximum_paths,
+                lsa_only_mode=lsa_only,
             ) if enable_ospf6 else None,
             isis_config=ISISConfig(
                 net_address=ISIS_DEFAULT_NET_ADDRESS,
@@ -418,6 +420,7 @@ def generate_from_config(
             spf_delay=app_settings.spf_delay,
             lsa_min_arrival=app_settings.lsa_min_arrival,
             maximum_paths=app_settings.maximum_paths,
+            lsa_only_mode=app_settings.lsa_only_mode,
         ) if app_settings.enable_ospf6 else None
 
         isis_cfg = ISISConfig(

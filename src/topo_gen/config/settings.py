@@ -68,6 +68,7 @@ class AppSettings(BaseSettings):
     spf_delay: int = Field(default=OSPF_DEFAULT_SPF_DELAY_MS)
     lsa_min_arrival: int = Field(default=OSPF_DEFAULT_LSA_MIN_ARRIVAL_MS)
     maximum_paths: int = Field(default=OSPF_DEFAULT_MAXIMUM_PATHS)
+    lsa_only_mode: bool = Field(default=False)
 
     # BGP 参数
     bgp_as: int = Field(default=BGP_DEFAULT_ASN)

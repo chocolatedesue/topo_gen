@@ -103,6 +103,7 @@ class OSPFConfig(BaseConfig):
     lsa_min_arrival: int = Field(default=OSPF_DEFAULT_LSA_MIN_ARRIVAL_MS, ge=10, le=60000, description="LSA最小到达间隔(毫秒)")
     # 与 CLI 默认保持一致: --maximum-paths 默认 1
     maximum_paths: int = Field(default=OSPF_DEFAULT_MAXIMUM_PATHS, ge=1, le=128, description="ECMP最大路径数")
+    lsa_only_mode: bool = Field(default=False, description="仅交换LSA模式")
 
     @field_validator('dead_interval')
     @classmethod
