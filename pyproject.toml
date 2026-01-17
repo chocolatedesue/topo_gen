@@ -1,0 +1,24 @@
+[project]
+name = "topo-gen"
+version = "0.1.0"
+description = "Topology generation tool"
+requires-python = ">=3.13"
+dependencies = [
+    "typer>=0.9.0",
+    "pyyaml>=6.0",
+    "jinja2>=3.1.0",
+    "pydantic>=2.12.5",
+    "anyio>=4.12.1",
+    "pydantic-settings>=2.12.0",
+    "structlog>=25.5.0",
+]
+
+[project.scripts]
+topo-gen = "topo_gen.__main__:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
