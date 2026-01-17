@@ -82,6 +82,9 @@ class TopologyConfig(BaseConfig):
     # 日志控制
     disable_logging: bool = Field(default=False, description="禁用所有配置文件中的日志记录")
 
+    # 拓扑控制
+    no_links: bool = Field(default=False, description="仅生成节点，不生成链路（Containerlab配置中不包含links部分）")
+
     @field_validator('dummy_gen_protocols')
     @classmethod
     def validate_dummy_gen_protocols(cls, v: Set[str]) -> Set[str]:

@@ -300,6 +300,7 @@ def generate_topology_command(
     no_config: List[str] = typer.Option([], "--no-config", help="为指定协议生成空配置(不写入备份)；支持: ospf6d,isisd,bgpd,bfdd；可多次传或用逗号分隔"),
     disable_logging: bool = typer.Option(False, "--disable-logging", help="禁用所有配置文件中的日志记录"),
     # 控制选项
+    no_links: bool = typer.Option(False, "--no-links", help="仅生成节点，不生成链路"),
     yes: bool = typer.Option(False, "--yes", "-y", help="跳过确认")
 ):
     """生成拓扑 (Grid / Torus / Strip)
@@ -357,7 +358,8 @@ def generate_topology_command(
             bfdd_off=bfdd_off,
             dummy_gen_protocols=_normalize_protocol_list(dummy_gen),
             no_config_protocols=_normalize_protocol_list(no_config),
-            disable_logging=disable_logging
+            disable_logging=disable_logging,
+            no_links=no_links
         )
     except Exception as e:
         console.print(f"[red]配置验证失败: {e}[/red]")

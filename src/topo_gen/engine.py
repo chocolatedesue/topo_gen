@@ -77,7 +77,10 @@ class TopologyEngine:
                 )
             
             # 7. 生成ContainerLab YAML
-            links = convert_links_to_clab_format(config, routers)
+            if config.no_links:
+                links = []
+            else:
+                links = convert_links_to_clab_format(config, routers)
             yaml_result = await generate_clab_yaml(config, routers, links, base_dir)
             if isinstance(yaml_result, Failure):
                 return GenerationResult(
@@ -131,7 +134,10 @@ class TopologyEngine:
         node_type = self._get_node_type(coord, config)
         
         # 获取邻居信息
-        neighbors = self._get_neighbors(coord, config)
+        if config.no_links:
+            neighbors = {}
+        else:
+            neighbors = self._get_neighbors(coord, config)
         
         # 确定区域ID
         area_id = self._calculate_area_id(coord, config)
