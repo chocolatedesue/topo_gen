@@ -171,48 +171,22 @@ class TopologyEngine:
         )
         return neighbors_func(coord)
     
+    
     def _calculate_area_id(self, coord: Coordinate, config: TopologyConfig) -> str:
-        """计算区域ID"""
-        if config.multi_area and config.area_size:
-            area_row = coord.row // config.area_size
-            area_col = coord.col // config.area_size
-            return f"{area_row}.{area_col}.0.0"
-        else:
-            return "0.0.0.0"
+        """计算区域ID - 使用统一策略"""
+        return TopologyStrategy.calculate_area_id(coord, config.multi_area, config.area_size)
     
 
+    
     
     def _calculate_as_number(self, coord: Coordinate, config: TopologyConfig) -> int:
-        """计算AS号"""
-        topo_type = get_topology_type_str(config.topology_type)
-        if topo_type == "special" and config.special_config:
-            # Special拓扑的AS分配逻辑（基于dm6_6_sample）
-            return self._get_special_as_number(coord, config.bgp_config.as_number)
-        else:
-            # Grid/Torus拓扑使用统一AS
-            return config.bgp_config.as_number
-
-    def _get_special_as_number(self, coord: Coordinate, base_as: int) -> int:
-        """获取Special拓扑的AS号
-
-        域分割规则（基于 dm6_6_sample）：
-        - 域1 (AS base+1): (0,0) 到 (2,2) - 左上角
-        - 域2 (AS base+2): (0,3) 到 (2,5) - 右上角
-        - 域3 (AS base+3): (3,0) 到 (5,2) - 左下角
-        - 域4 (AS base+4): (3,3) 到 (5,5) - 右下角
-        """
-        row, col = coord.row, coord.col
-
-        if 0 <= row <= 2 and 0 <= col <= 2:
-            return base_as + 1  # 域1
-        elif 0 <= row <= 2 and 3 <= col <= 5:
-            return base_as + 2  # 域2
-        elif 3 <= row <= 5 and 0 <= col <= 2:
-            return base_as + 3  # 域3
-        elif 3 <= row <= 5 and 3 <= col <= 5:
-            return base_as + 4  # 域4
-        else:
-            return base_as  # 默认AS（不应该发生）
+        """计算AS号 - 使用统一策略"""
+        return TopologyStrategy.calculate_as_number(
+            coord,
+            config.topology_type,
+            config.bgp_config.as_number,
+            config.special_config
+        )
 
     def _get_protocol_suffix(self, config: TopologyConfig) -> str:
         """获取协议后缀标识"""

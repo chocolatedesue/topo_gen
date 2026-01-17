@@ -110,3 +110,70 @@ class TopologyStrategy:
             return NodeType.GATEWAY
         else:
             return NodeType.INTERNAL
+    
+    @staticmethod
+    def calculate_area_id(coord: Coordinate, multi_area: bool, area_size: Optional[int]) -> str:
+        """计算区域ID
+        
+        Args:
+            coord: 节点坐标
+            multi_area: 是否多区域
+            area_size: 区域大小
+            
+        Returns:
+            区域ID字符串 (e.g., "0.0.0.0" or "1.2.0.0")
+        """
+        if multi_area and area_size:
+            area_row = coord.row // area_size
+            area_col = coord.col // area_size
+            return f"{area_row}.{area_col}.0.0"
+        else:
+            return "0.0.0.0"
+    
+    @staticmethod
+    def calculate_as_number(
+        coord: Coordinate, 
+        topology_type: TopologyType,
+        base_as: int,
+        special_config=None
+    ) -> int:
+        """计算AS号
+        
+        Args:
+            coord: 节点坐标
+            topology_type: 拓扑类型
+            base_as: 基础AS号
+            special_config: 特殊拓扑配置（可选）
+            
+        Returns:
+            AS号
+        """
+        if topology_type == TopologyType.SPECIAL and special_config:
+            # Special拓扑的AS分配逻辑（基于dm6_6_sample）
+            return TopologyStrategy._calculate_special_as_number(coord, base_as)
+        else:
+            # Grid/Torus拓扑使用统一AS
+            return base_as
+    
+    @staticmethod
+    def _calculate_special_as_number(coord: Coordinate, base_as: int) -> int:
+        """获取Special拓扑的AS号
+        
+        域分割规则（基于 dm6_6_sample）：
+        - 域1 (AS base+1): (0,0) 到 (2,2) - 左上角
+        - 域2 (AS base+2): (0,3) 到 (2,5) - 右上角
+        - 域3 (AS base+3): (3,0) 到 (5,2) - 左下角
+        - 域4 (AS base+4): (3,3) 到 (5,5) - 右下角
+        """
+        row, col = coord.row, coord.col
+        
+        if 0 <= row <= 2 and 0 <= col <= 2:
+            return base_as + 1  # 域1
+        elif 0 <= row <= 2 and 3 <= col <= 5:
+            return base_as + 2  # 域2
+        elif 3 <= row <= 5 and 0 <= col <= 2:
+            return base_as + 3  # 域3
+        elif 3 <= row <= 5 and 3 <= col <= 5:
+            return base_as + 4  # 域4
+        else:
+            return base_as  # 默认AS（不应该发生）

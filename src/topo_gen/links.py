@@ -21,6 +21,7 @@ from .topology.grid import get_grid_neighbors as grid_neighbors_factory
 from .topology.torus import get_torus_neighbors as torus_neighbors_factory
 from .topology.strip import get_strip_neighbors as strip_neighbors_factory
 from .topology.special import SpecialTopology
+from .utils.direction import calculate_direction
 
 
 @dataclass
@@ -112,6 +113,29 @@ def get_neighbors_func(topology_type: TopologyType, size: int, special_config=No
 # 通过 topology 模块提供的工厂函数获取（见 get_neighbors_func）。
 
 
+def _find_available_direction(neighbors: Dict[Direction, Coordinate]) -> Direction:
+    """找到可用的方向"""
+    for direction in Direction:
+        if direction not in neighbors:
+            return direction
+    return Direction.NORTH  # 默认返回北方向
+
+
+def _add_bridge_edges(
+    neighbors: Dict[Direction, Coordinate], 
+    edges: List[tuple[Coordinate, Coordinate]], 
+    coord: Coordinate
+) -> None:
+    """为桥接边添加邻居（双向）"""
+    for edge in edges:
+        if edge[0] == coord:
+            direction = _find_available_direction(neighbors)
+            neighbors[direction] = edge[1]
+        elif edge[1] == coord:
+            direction = _find_available_direction(neighbors)
+            neighbors[direction] = edge[0]
+
+
 def get_special_neighbors(coord: Coordinate, size: int, special_config) -> Dict[Direction, Coordinate]:
     """获取特殊拓扑的邻居"""
     from .topology.special import get_filtered_grid_neighbors
@@ -125,36 +149,9 @@ def get_special_neighbors(coord: Coordinate, size: int, special_config) -> Dict[
         else:  # GRID - 使用过滤后的邻居
             neighbors = get_filtered_grid_neighbors(coord, size)
 
-    # 2. 添加特殊连接
-    # 内部桥接连接
-    for edge in special_config.internal_bridge_edges:
-        if edge[0] == coord:
-            # 找一个可用的方向
-            for direction in Direction:
-                if direction not in neighbors:
-                    neighbors[direction] = edge[1]
-                    break
-        elif edge[1] == coord:
-            # 找一个可用的方向
-            for direction in Direction:
-                if direction not in neighbors:
-                    neighbors[direction] = edge[0]
-                    break
-
-    # Torus桥接连接（为gateway节点提供额外接口）
-    for edge in special_config.torus_bridge_edges:
-        if edge[0] == coord:
-            # 找一个可用的方向
-            for direction in Direction:
-                if direction not in neighbors:
-                    neighbors[direction] = edge[1]
-                    break
-        elif edge[1] == coord:
-            # 找一个可用的方向
-            for direction in Direction:
-                if direction not in neighbors:
-                    neighbors[direction] = edge[0]
-                    break
+    # 2. 添加特殊连接 - 使用统一的辅助函数
+    _add_bridge_edges(neighbors, special_config.internal_bridge_edges, coord)
+    _add_bridge_edges(neighbors, special_config.torus_bridge_edges, coord)
 
     return neighbors
 
