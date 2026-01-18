@@ -115,6 +115,10 @@ class TopologyConfig(BaseConfig):
     # 特殊拓扑配置
     special_config: Optional[SpecialTopologyConfig] = Field(default=None, description="特殊拓扑配置")
 
+    # 链路配置
+    link_delay: str = Field(default="10ms", description="默认链路延迟")
+
+
     @field_validator('area_size')
     @classmethod
     def validate_area_size(cls, v: Optional[int], info) -> Optional[int]:

@@ -1,47 +1,65 @@
 # Topo Gen
 
-基于 uv 管理的现代化## 快速开始
+基于 uv 管理的现代化 OSPFv3/ISIS/BGP 拓扑生成器。
 
-### 1. 生成并部署拓扑
+## 快速开始
 
 ```bash
-# 生成 20x20 的 Torus 拓扑 (400 节点)
-uv run topo-gen generate torus 20 -y
+# 生成拓扑
+uv run topo-gen generate grid 5 -y
 
 # 启用 LSA-only 测试模式 (除 router_00_00 外延迟 SPF 计算)
 uv run topo-gen generate torus 20 --lsa-only -y
 
-# 使用 Containerlab 部署 (默认使用 Docker)
+# 部署拓扑 (使用 Docker)
 sudo containerlab deploy -t ospf6_torus20x20/ospf6_torus20x20.clab.yaml
-```
-
-> [!TIP]
-> **关于运行环境 (Runtime)**
-> - 本项目生成的配置包含 `network-mode: none`，目前 **Docker** 支持最为完善。
-> - 若需使用 **Podman**，请确保您的环境支持对应网络模式，或在生成配置时进行相应调整（注：Podman 某些版本在使用 `none` 模式时可能存在兼容性问题）。
-
-### 2. 常用管理命令
-
-```bash
-# 检查拓扑状态
-sudo containerlab inspect -t ospf6_torus20x20/ospf6_torus20x20.clab.yaml
 
 # 销毁拓扑
 sudo containerlab destroy -t ospf6_torus20x20/ospf6_torus20x20.clab.yaml -c
 ```
 
-## 环境依赖 (推荐 Nix)
+> [!TIP]
+> **关于运行环境 (Runtime)**
+> - 本项目生成的配置包含 `network-mode: none`，目前 **Docker** 支持最为完善。
+> - 若需使用 **Podman**，请确保您的环境支持对应网络模式。
 
-本项目推荐使用 Nix 管理 Podman 和其他工具。详细配置方案请参考：
-- [Nix 环境指南](docs/NIX_GUIDE.md)
-- [完整操作文档](docs/README.md)
+## 目录结构
 
-## 常用命令
+```
+.
+├── src/topo_gen/      # 核心源代码
+├── docs/              # 文档
+│   ├── QUICKSTART.md  # 快速开始指南
+│   └── monitoring.md  # 监控工具文档
+├── scripts/           # OSPF 分析和调试脚本
+│   ├── analyze_ospf6_spf.sh
+│   └── apply_ospf6_debug.sh
+├── tools/             # 资源监控工具
+│   ├── monitor_resources.sh  # Docker stats 监控
+│   └── plot_resources.py     # 可视化脚本
+└── examples/          # 示例输出 (gitignored)
+```
 
-*   **生成 Grid 拓扑**: `uv run topo-gen generate grid 4 -y`
-*   **查看状态**: `sudo containerlab inspect --runtime podman -t ...`
-*   **销毁拓扑**: `sudo containerlab destroy --runtime podman -t ...`
-*   **清理环境**: `sudo containerlab destroy -a -y --runtime podman`
+## 监控工具
+
+新增容器资源监控功能：
+
+```bash
+# 监控路由器资源使用
+./tools/monitor_resources.sh clab-ospf6-grid5x5-router_00_00
+
+# 生成可视化图表
+uv run ./tools/plot_resources.py resource_usage.csv -o graph.png
+```
+
+详见 [docs/monitoring.md](docs/monitoring.md)
+
+## 文档
+
+- [快速开始](docs/QUICKSTART.md)
+- [监控工具](docs/monitoring.md)
+- [Nix 环境](docs/NIX_GUIDE.md)
 
 ---
+
 更多高级用法请查看 [docs/README.md](docs/README.md)

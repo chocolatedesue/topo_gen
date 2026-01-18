@@ -279,9 +279,82 @@ class FileSystemManager:
         # 生成链路配置
         clab_links = []
         for router1, intf1, router2, intf2 in links:
-            clab_links.append({
+            # 使用标准的 veth pair 并添加延迟
+            # 注意: containerlab 允许在 endpoints 定义中直接指定 latency 等参数，或者使用 kind: linux 节点的 tc 功能
+            # 更简单的方式是使用 link 的属性
+            link_def = {
                 "endpoints": [f"{router1}:{intf1}", f"{router2}:{intf2}"]
-            })
+            }
+            # 如果配置了延迟，应用到链路
+            if config.link_delay and config.link_delay != "0ms":
+                 # Containerlab 支持在链路定义中使用 'vars' 或者直接在 interfaces 上配置 tc (但这里是 link level definition)
+                 # 正确的方式通常取决于 containerlab 版本和运行时。
+                 # 标准方式：在 link 定义中无法直接加 latency。
+                 # 但可以通过 endpoint 扩展属性: endpoint:interface:latency (不支持)
+                 # 另一种方式：kind: cvx 支持，但 linux bridge/veth 默认不支持直接写 latency。
+                 # 必须使用 'tc' 流量控制。Containerlab 为每个链路端点自动创建 tc qdisc 吗？不。
+                 # 
+                 # 修正：Containerlab 目前原生不支持在 simple link array 中直接定义 latency。
+                 # 需要使用 tc 镜像或手动 tc 命令，或者在节点定义中添加 exec 命令。
+                 # 
+                 # 为了简起见，我们将在节点启动后的 exec 中不方便添加。
+                 # 
+                 # 更好的方法：Containerlab 确实支持 endpoint attributes 吗？
+                 # 文档显示：
+                 # links:
+                 #   - endpoints: ["node1:eth1", "node2:eth1"]
+                 #     latency: 10ms  <-- 这是一个受支持的特性吗？这不是核心 link schema。
+                 #
+                 # 验证：Containerlab 实验性功能或某些 kind 支持。
+                 # 
+                 # 对于 linux kind，最稳妥的方法是生成 startup-config script 或 exec。
+                 # 
+                 # 但等等，我们可以使用 containerlab 的 'exec' 列表在拓扑文件中。
+                 # 
+                 # 让我们尝试一种更通用的方法：
+                 # 为每个容器生成一个 startup script，调用 tc。
+                 # 
+                 # 实际上，containerlab 确实在早期版本讨论过链路属性。
+                 # Modern approach: 使用 kind: linux，可以执行命令。
+                 # 
+                 # 让我们先保持简单：我们不修改 schema 除非确定 clab 支持。
+                 # 经确认，clab 目前并不直接在 links 列表支持 'latency' 字段用于 veth。
+                 # 
+                 # 替代方案：在 deploy 后运行脚本。这在生成器中比较难办。
+                 # 
+                 # 再次确认：Containerlab 文档 "Link Impairments"。
+                 # 目前大多通过 sidecar 或 tc 脚本。
+                 # 
+                 # 但是！我们可以生成一个设置脚本 `setup_latency.sh`。
+                 # 
+                 # 咦，等等。用户请求 "用来更好观测"。
+                 # 如果我们生成脚本，用户需要手动运行。
+                 # 
+                 # 让我们在 clab yaml 中为每个节点添加 exec 命令。
+                 pass 
+
+            clab_links.append(link_def)
+
+        # 辅助函数：为所有接口设置延迟的命令
+        # 我们可以利用 clab 的 `exec` 钩子。
+        
+        # 重新遍历 routers 添加 exec
+        for router in routers:
+            if config.link_delay and config.link_delay != "0ms":
+                 # 简单的 tc 命令添加延迟
+                 # 注意：这需要容器内有 tc 工具，或者宿主机支持。
+                 # FRR 镜像通常包含 iproute2。
+                 # 对每个接口（除了 lo 和 eth0-mgmt）添加 netem
+                 cmds = []
+                 for intf in router.interfaces.keys():
+                     # qdisc add dev eth1 root netem delay 10ms
+                     cmds.append(f"tc qdisc add dev {intf} root netem delay {config.link_delay}")
+                 
+                 # 添加到节点定义
+                 if "exec" not in nodes[router.name]:
+                     nodes[router.name]["exec"] = []
+                 nodes[router.name]["exec"].extend(cmds)
+
 
         # 计算 CPU 亲和性范围：0 ~ (cpus - 2)
         try:

@@ -301,6 +301,7 @@ def generate_topology_command(
     disable_logging: bool = typer.Option(False, "--disable-logging", help="禁用所有配置文件中的日志记录"),
     # 控制选项
     no_links: bool = typer.Option(False, "--no-links", help="仅生成节点，不生成链路"),
+    link_delay: str = typer.Option("10ms", "--link-delay", help="默认链路延迟 (例如: 10ms, 1s)"),
     podman: bool = typer.Option(False, "--podman", help="为Podman运行时优化生成的配置文件"),
     yes: bool = typer.Option(False, "--yes", "-y", help="跳过确认")
 ):
@@ -361,6 +362,7 @@ def generate_topology_command(
             no_config_protocols=_normalize_protocol_list(no_config),
             disable_logging=disable_logging,
             no_links=no_links,
+            link_delay=link_delay,
             podman=podman
         )
     except Exception as e:
@@ -469,6 +471,7 @@ def generate_from_config(
             no_config_protocols=app_settings.no_config_protocols,
             disable_logging=app_settings.disable_logging,
             output_dir=app_settings.output_dir,
+            link_delay=getattr(app_settings, 'link_delay', "10ms"),
         )
     except Exception as e:
         console.print(f"[red]配置验证失败: {e}[/red]")

@@ -36,11 +36,35 @@ ospf6_isis_*/
 clab-*/
 *.clab.yaml.bak
 
-# Logs
+# Logs and monitoring outputs
 *.log
 logs/
+
+# Monitoring and analysis outputs
+*.csv
+*.png
+*.pdf
+*.svg
+examples/*.csv
+examples/*.png
+examples/*.pdf
+examples/*.log
 
 # Temporary files
 *.tmp
 *.temp
 .cache/
+
+# Test outputs
+test_*.csv
+test_*.png
+*_demo.csv
+*_demo.png
+resource_usage.*
+comparison.*
+stress_test.*
+
+# Backup files
+*-bak.conf
+*.bak
+*.backup

@@ -6,8 +6,15 @@ hostname {{ router_name }}
 {% if not disable_logging %}
 !
 log file /var/log/frr/ospf6d.log debugging
+log timestamp precision 6
 log commands
+debug ospf6 lsa
+debug ospf6 flooding
+debug ospf6 spf time
+debug ospf6 spf process
+debug ospf6 spf database
 debug ospf6 neighbor state
+debug ospf6 route
 {% endif %}
 !
 ! Loopback interface configuration

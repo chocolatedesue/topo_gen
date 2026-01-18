@@ -67,6 +67,11 @@ BFD_DEFAULT_MIN_TTL: int = 1
 # App/Logging
 DISABLE_LOGGING_DEFAULT: bool = False
 
+
 # Mgmt defaults
 MGMT_DEFAULT_EXTERNAL_ACCESS: bool = False
+
+# Network defaults
+NETWORK_DEFAULT_DELAY_MS: str = "10ms"
+
 
