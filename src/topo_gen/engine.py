@@ -216,7 +216,13 @@ class TopologyEngine:
             return Path(str(config.output_dir))
         topo_type = get_topology_type_str(config.topology_type)
         protocol_suffix = self._get_protocol_suffix(config)
-        return Path(f"{protocol_suffix}_{topo_type}{config.size}x{config.size}")
+        
+        # 添加 LSA-only 后缀
+        lsa_only_suffix = ""
+        if config.ospf_config and config.ospf_config.lsa_only_mode:
+            lsa_only_suffix = "_lsa_only"
+        
+        return Path(f"{protocol_suffix}_{topo_type}{config.size}x{config.size}{lsa_only_suffix}")
 
 
 # 便利函数

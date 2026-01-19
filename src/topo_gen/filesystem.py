@@ -398,7 +398,13 @@ async def create_all_directories(
         base_dir = Path(str(config.output_dir))
     else:
         protocol_suffix = get_protocol_suffix(config)
-        base_dir = Path(f"{protocol_suffix}_{get_topology_type_str(config.topology_type)}{config.size}x{config.size}")
+        
+        # 添加 LSA-only 后缀
+        lsa_only_suffix = ""
+        if config.ospf_config and config.ospf_config.lsa_only_mode:
+            lsa_only_suffix = "_lsa_only"
+        
+        base_dir = Path(f"{protocol_suffix}_{get_topology_type_str(config.topology_type)}{config.size}x{config.size}{lsa_only_suffix}")
 
     fs_manager = FileSystemManager(base_dir)
     return await fs_manager.create_directory_structure(routers)
