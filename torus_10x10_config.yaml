@@ -1,0 +1,11 @@
+size: 10
+topology_type: torus
+multi_area: false
+ospf_config:
+  hello_interval: 5
+  dead_interval: 20
+  spf_delay: 500
+  lsa_only_mode: true
+bfd_config:
+  enabled: true
+link_delay: 10ms
