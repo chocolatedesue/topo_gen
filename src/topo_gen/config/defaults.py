@@ -75,6 +75,6 @@ MGMT_DEFAULT_EXTERNAL_ACCESS: bool = False
 NETWORK_DEFAULT_DELAY_MS: str = "10ms"
 
 # Container resource limits
-CONTAINER_DEFAULT_CPU_LIMIT: float = 0.05
+CONTAINER_DEFAULT_CPU_LIMIT: float = 0.5
 CONTAINER_DEFAULT_MEMORY_LIMIT: str = "256MB"
 CONTAINER_DEFAULT_CPU_SET: str = "auto"  # "auto" means 0-{cpus-2}
