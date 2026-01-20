@@ -204,7 +204,9 @@ def display_system_requirements(requirements: SystemRequirements):
 [bold]系统需求[/bold]
 
 • 最小内存: {requirements.min_memory_gb:.1f} GB
-• 推荐内存: {requirements.recommended_memory_gb:.1f} GB  
+• 推荐内存: {requirements.recommended_memory_gb:.1f} GB
+• 推荐磁盘: {requirements.min_disk_gb:.1f} GB (含日志)
+• 推荐CPU : {requirements.recommended_cpus} Cores (Min: {requirements.min_cpus})
 • 配置生成线程: {requirements.max_workers_config}
 • 文件系统线程: {requirements.max_workers_filesystem}
         """.strip(),
