@@ -307,9 +307,9 @@ def generate_topology_command(
     link_delay: str = typer.Option("10ms", "--link-delay", help="默认链路延迟 (例如: 10ms, 1s)"),
     podman: bool = typer.Option(False, "--podman", help="为Podman运行时优化生成的配置文件"),
     # 容器资源限制选项
-    cpu_limit: float = typer.Option(CONTAINER_DEFAULT_CPU_LIMIT, "--cpu-limit", help="容器CPU限制 (默认: 0.5)"),
-    memory_limit: str = typer.Option(CONTAINER_DEFAULT_MEMORY_LIMIT, "--memory-limit", help="容器内存限制 (默认: 256MB)"),
-    cpu_set: str = typer.Option(CONTAINER_DEFAULT_CPU_SET, "--cpu-set", help="容器CPU亲和性 (默认: auto即0-{cpus-2})"),
+    cpu_limit: float = typer.Option(CONTAINER_DEFAULT_CPU_LIMIT, "--cpu-limit", help=f"容器CPU限制 (默认: {CONTAINER_DEFAULT_CPU_LIMIT})"),
+    memory_limit: str = typer.Option(CONTAINER_DEFAULT_MEMORY_LIMIT, "--memory-limit", help=f"容器内存限制 (默认: {CONTAINER_DEFAULT_MEMORY_LIMIT})"),
+    cpu_set: str = typer.Option(CONTAINER_DEFAULT_CPU_SET, "--cpu-set", help=f"容器CPU亲和性 (默认: {CONTAINER_DEFAULT_CPU_SET}即0-{{cpus-2}})"),
     yes: bool = typer.Option(False, "--yes", "-y", help="跳过确认")
 ):
     """生成拓扑 (Grid / Torus / Strip)

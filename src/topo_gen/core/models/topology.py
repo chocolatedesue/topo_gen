@@ -10,6 +10,11 @@ from .network import NetworkConfig
 from .protocols import OSPFConfig, BGPConfig, ISISConfig, BFDConfig
 from .validators import validate_protocol_set
 from ..types import Coordinate, TopologyType, TopologyStats
+from ...config.defaults import (
+    CONTAINER_DEFAULT_CPU_LIMIT,
+    CONTAINER_DEFAULT_MEMORY_LIMIT,
+    CONTAINER_DEFAULT_CPU_SET,
+)
 
 class SpecialTopologyConfig(BaseConfig):
     """特殊拓扑配置"""
@@ -119,9 +124,9 @@ class TopologyConfig(BaseConfig):
     link_delay: str = Field(default="10ms", description="默认链路延迟")
 
     # 容器资源限制
-    cpu_limit: Optional[float] = Field(default=0.5, description="容器CPU限制")
-    memory_limit: str = Field(default="256MB", description="容器内存限制")
-    cpu_set: str = Field(default="auto", description="容器CPU亲和性设置 (auto表示0-{cpus-2})")
+    cpu_limit: Optional[float] = Field(default=CONTAINER_DEFAULT_CPU_LIMIT, description="容器CPU限制")
+    memory_limit: str = Field(default=CONTAINER_DEFAULT_MEMORY_LIMIT, description="容器内存限制")
+    cpu_set: str = Field(default=CONTAINER_DEFAULT_CPU_SET, description="容器CPU亲和性设置 (auto表示0-{cpus-2})")
 
     @field_validator('area_size')
     @classmethod
