@@ -356,12 +356,17 @@ class FileSystemManager:
                  nodes[router.name]["exec"].extend(cmds)
 
 
-        # 计算 CPU 亲和性范围：0 ~ (cpus - 2)
-        try:
-            total_cpus = os.cpu_count() or 1
-        except Exception:
-            total_cpus = 1
-        cpu_set_range = f"0-{max(0, total_cpus - 2)}"
+        # 计算 CPU 亲和性范围
+        if config.cpu_set == "auto":
+            # auto 模式：0 ~ (cpus - 2)
+            try:
+                total_cpus = os.cpu_count() or 1
+            except Exception:
+                total_cpus = 1
+            cpu_set_range = f"0-{max(0, total_cpus - 2)}"
+        else:
+            # 使用配置指定的值
+            cpu_set_range = config.cpu_set
 
         # 生成完整配置
         protocol_suffix = get_protocol_suffix(config)
@@ -374,10 +379,10 @@ class FileSystemManager:
             },
             "topology": {
                 "defaults": {
-                    # 限制所有容器 CPU 亲和性到 0~cpus-1，单容器上限 1.0 vCPU，内存上限 512MB
+                    # 限制所有容器 CPU 亲和性到 0~cpus-1，单容器上限可配置 CPU，内存上限可配置
                     "cpu-set": cpu_set_range,
-                    # "cpu": 1.0,
-                    "memory": "512MB",
+                    "cpu": config.cpu_limit,
+                    "memory": config.memory_limit,
                 },
                 "nodes": nodes,
                 "links": clab_links

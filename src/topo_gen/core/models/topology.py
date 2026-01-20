@@ -118,6 +118,10 @@ class TopologyConfig(BaseConfig):
     # 链路配置
     link_delay: str = Field(default="10ms", description="默认链路延迟")
 
+    # 容器资源限制
+    cpu_limit: Optional[float] = Field(default=0.05, description="容器CPU限制")
+    memory_limit: str = Field(default="256MB", description="容器内存限制")
+    cpu_set: str = Field(default="auto", description="容器CPU亲和性设置 (auto表示0-{cpus-2})")
 
     @field_validator('area_size')
     @classmethod

@@ -53,6 +53,9 @@ from .config.defaults import (
     ISIS_DEFAULT_SPF_TIME_TO_LEARN_MS,
     ISIS_DEFAULT_NET_ADDRESS,
     BGP_DEFAULT_ASN,
+    CONTAINER_DEFAULT_CPU_LIMIT,
+    CONTAINER_DEFAULT_CPU_SET,
+    CONTAINER_DEFAULT_MEMORY_LIMIT,
 )
 from .core.models import (
     TopologyConfig, OSPFConfig, ISISConfig, BGPConfig, BFDConfig,
@@ -303,6 +306,10 @@ def generate_topology_command(
     no_links: bool = typer.Option(False, "--no-links", help="仅生成节点，不生成链路"),
     link_delay: str = typer.Option("10ms", "--link-delay", help="默认链路延迟 (例如: 10ms, 1s)"),
     podman: bool = typer.Option(False, "--podman", help="为Podman运行时优化生成的配置文件"),
+    # 容器资源限制选项
+    cpu_limit: float = typer.Option(CONTAINER_DEFAULT_CPU_LIMIT, "--cpu-limit", help="容器CPU限制 (默认: 0.05)"),
+    memory_limit: str = typer.Option(CONTAINER_DEFAULT_MEMORY_LIMIT, "--memory-limit", help="容器内存限制 (默认: 256MB)"),
+    cpu_set: str = typer.Option(CONTAINER_DEFAULT_CPU_SET, "--cpu-set", help="容器CPU亲和性 (默认: auto即0-{cpus-2})"),
     yes: bool = typer.Option(False, "--yes", "-y", help="跳过确认")
 ):
     """生成拓扑 (Grid / Torus / Strip)
@@ -363,7 +370,10 @@ def generate_topology_command(
             disable_logging=disable_logging,
             no_links=no_links,
             link_delay=link_delay,
-            podman=podman
+            podman=podman,
+            cpu_limit=cpu_limit,
+            memory_limit=memory_limit,
+            cpu_set=cpu_set
         )
     except Exception as e:
         console.print(f"[red]配置验证失败: {e}[/red]")
@@ -472,6 +482,9 @@ def generate_from_config(
             disable_logging=app_settings.disable_logging,
             output_dir=app_settings.output_dir,
             link_delay=getattr(app_settings, 'link_delay', "10ms"),
+            cpu_limit=app_settings.cpu_limit,
+            memory_limit=app_settings.memory_limit,
+            cpu_set=app_settings.cpu_set,
         )
     except Exception as e:
         console.print(f"[red]配置验证失败: {e}[/red]")
