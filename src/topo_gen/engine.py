@@ -18,7 +18,7 @@ from .core.models import (
 )
 from .filesystem import (
     create_all_directories, create_all_template_files,
-    generate_all_config_files, generate_clab_yaml
+    generate_all_config_files, generate_clab_yaml, generate_zip_archive
 )
 from .links import generate_interface_mappings, convert_links_to_clab_format, generate_loopback_ipv6
 from .topology.special import filter_routers_for_special_topology
@@ -48,6 +48,54 @@ class TopologyEngine:
             
             # 3. 创建目录结构
             base_dir = self._get_output_dir(config)
+            
+            # 5. 生成接口地址映射 / 链路（避免重复计算）
+            if config.no_links:
+                links = []
+                interface_mappings = {router.name: {} for router in routers}
+            else:
+                from .links import generate_all_links
+                links = generate_all_links(config)
+                interface_mappings = generate_interface_mappings(config, routers, links)
+
+            # ZIP 输出路径：内存生成后一次性写出
+            if config.zip_output:
+                if config.no_links:
+                    links_for_yaml = []
+                else:
+                    links_for_yaml = convert_links_to_clab_format(
+                        config,
+                        routers,
+                        links,
+                        interface_mappings
+                    )
+                zip_result = await generate_zip_archive(
+                    config,
+                    routers,
+                    interface_mappings,
+                    requirements,
+                    base_dir,
+                    links_for_yaml
+                )
+                if isinstance(zip_result, Failure):
+                    return GenerationResult(
+                        success=False,
+                        message=f"ZIP生成失败: {zip_result.error}"
+                    )
+
+                return GenerationResult(
+                    success=True,
+                    message="拓扑生成成功",
+                    output_dir=base_dir,
+                    stats={
+                        "total_routers": len(routers),
+                        "total_links": len(links_for_yaml),
+                        "topology_type": get_topology_type_str(config.topology_type),
+                        "size": config.size
+                    }
+                )
+
+            # 3. 创建目录结构
             dir_result = await create_all_directories(config, routers, requirements)
             if isinstance(dir_result, Failure):
                 return GenerationResult(
@@ -62,15 +110,6 @@ class TopologyEngine:
                     success=False,
                     message=f"模板创建失败: {template_result.error}"
                 )
-            
-            # 5. 生成接口地址映射 / 链路（避免重复计算）
-            if config.no_links:
-                links = []
-                interface_mappings = {router.name: {} for router in routers}
-            else:
-                from .links import generate_all_links
-                links = generate_all_links(config)
-                interface_mappings = generate_interface_mappings(config, routers, links)
             
             # 6. 生成配置文件
             config_result = await generate_all_config_files(

@@ -67,6 +67,7 @@ BFD_DEFAULT_MIN_TTL: int = 1
 # App/Logging
 DISABLE_LOGGING_DEFAULT: bool = False
 SKIP_LOG_FILES_DEFAULT: bool = False
+ZIP_OUTPUT_DEFAULT: bool = False
 
 
 # Mgmt defaults

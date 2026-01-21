@@ -305,6 +305,7 @@ def generate_topology_command(
     no_config: List[str] = typer.Option([], "--no-config", help="为指定协议生成空配置(不写入备份)；支持: ospf6d,isisd,bgpd,bfdd；可多次传或用逗号分隔"),
     disable_logging: bool = typer.Option(False, "--disable-logging", help="禁用所有配置文件中的日志记录"),
     skip_log_files: bool = typer.Option(False, "--skip-log-files", help="跳过预创建日志文件以加速生成"),
+    zip_output: bool = typer.Option(False, "--zip-output", help="以内存方式生成并输出ZIP包"),
     # 控制选项
     no_links: bool = typer.Option(False, "--no-links", help="仅生成节点，不生成链路"),
     link_delay: str = typer.Option("10ms", "--link-delay", help="默认链路延迟 (例如: 10ms, 1s)"),
@@ -372,6 +373,7 @@ def generate_topology_command(
             no_config_protocols=_normalize_protocol_list(no_config),
             disable_logging=disable_logging,
             skip_log_files=skip_log_files,
+            zip_output=zip_output,
             no_links=no_links,
             link_delay=link_delay,
             podman=podman,
@@ -485,6 +487,7 @@ def generate_from_config(
             no_config_protocols=app_settings.no_config_protocols,
             disable_logging=app_settings.disable_logging,
             skip_log_files=app_settings.skip_log_files,
+            zip_output=app_settings.zip_output,
             output_dir=app_settings.output_dir,
             link_delay=getattr(app_settings, 'link_delay', "10ms"),
             cpu_limit=app_settings.cpu_limit,

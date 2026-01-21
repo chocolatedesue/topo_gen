@@ -11,6 +11,8 @@ import anyio
 from anyio import Path as AsyncPath
 import stat
 import os
+import io
+import zipfile
 
 from .core.types import RouterName, Success, Failure, Result
 from .core.models import TopologyConfig, RouterInfo, SystemRequirements
@@ -544,3 +546,112 @@ async def generate_clab_yaml(
     """生成ContainerLab YAML"""
     fs_manager = FileSystemManager(base_dir)
     return await fs_manager.write_containerlab_yaml(config, routers, links)
+
+
+async def generate_zip_archive(
+    config: TopologyConfig,
+    routers: List[RouterInfo],
+    interface_mappings: Dict[RouterName, Dict[str, str]],
+    requirements: SystemRequirements,
+    base_dir: Path,
+    links: List[Tuple[str, str, str, str]]
+) -> Result:
+    """以内存方式生成所有文件并输出ZIP包"""
+    try:
+        fs_manager = FileSystemManager(base_dir)
+        yaml_content = fs_manager._generate_containerlab_yaml(config, routers, links)
+
+        config_types = ["daemons", "zebra.conf"]
+        if config.ospf_config is not None:
+            config_types.append("ospf6d.conf")
+        if config.enable_isis:
+            config_types.append("isisd.conf")
+        if config.enable_bgp:
+            config_types.append("bgpd.conf")
+        if config.enable_bfd:
+            config_types.append("bfdd.conf")
+
+        generators = {
+            config_type: ConfigGeneratorFactory.create(config_type)
+            for config_type in config_types
+        }
+
+        file_map: Dict[str, str] = {}
+        log_files = [
+            "zebra.log",
+            "ospf6d.log",
+            "bgpd.log",
+            "bfdd.log",
+            "staticd.log",
+            "route.json",
+            "isisd.log",
+        ]
+
+        for router in routers:
+            conf_prefix = f"etc/{router.name}/conf"
+            log_prefix = f"etc/{router.name}/log"
+
+            # 模板
+            templates = generate_all_templates(router, config)
+            for name, content in templates.items():
+                file_map[f"{conf_prefix}/{name}"] = content
+
+            # 日志文件（可选）
+            if not config.skip_log_files:
+                for log_name in log_files:
+                    file_map[f"{log_prefix}/{log_name}"] = ""
+
+            # 接口映射
+            if router.name in interface_mappings:
+                router.interfaces.update(interface_mappings[router.name])
+
+            # 配置文件
+            for config_type in config_types:
+                generator = generators[config_type]
+                content = generator.generate(router, config)
+
+                protocol_name = config_type
+                base_protocol = protocol_name.split('.')[0]
+                is_dummy = False
+                is_no_config = False
+                if hasattr(config, 'dummy_gen_protocols') and isinstance(config.dummy_gen_protocols, set):
+                    if base_protocol in config.dummy_gen_protocols:
+                        is_dummy = True
+                if hasattr(config, 'no_config_protocols') and isinstance(config.no_config_protocols, set):
+                    if base_protocol in config.no_config_protocols:
+                        is_no_config = True
+
+                if is_no_config:
+                    file_map[f"{conf_prefix}/{protocol_name}"] = ""
+                    continue
+
+                if content:
+                    if is_dummy:
+                        file_map[f"{conf_prefix}/{base_protocol}-bak.conf"] = content
+                        file_map[f"{conf_prefix}/{protocol_name}"] = ""
+                    else:
+                        file_map[f"{conf_prefix}/{protocol_name}"] = content
+
+        topo_type = get_topology_type_str(config.topology_type)
+        protocol_suffix = get_protocol_suffix(config)
+        yaml_filename = f"{protocol_suffix}_{topo_type}{config.size}x{config.size}.clab.yaml"
+        file_map[yaml_filename] = yaml_content
+
+        # ZIP 输出
+        zip_filename = f"{protocol_suffix}_{topo_type}{config.size}x{config.size}.zip"
+        base_dir_path = Path(base_dir)
+        base_dir_path.mkdir(parents=True, exist_ok=True)
+        zip_path = base_dir_path / zip_filename
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for path, content in file_map.items():
+                zf.writestr(path, content)
+
+        async with await AsyncPath(zip_path).open('wb') as f:
+            await f.write(buffer.getvalue())
+
+        return Success(f"成功生成ZIP包: {zip_filename}")
+
+    except Exception as e:
+        return Failure(f"ZIP生成失败: {str(e)}")

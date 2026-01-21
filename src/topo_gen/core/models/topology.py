@@ -87,6 +87,7 @@ class TopologyConfig(BaseConfig):
     # 日志控制
     disable_logging: bool = Field(default=False, description="禁用所有配置文件中的日志记录")
     skip_log_files: bool = Field(default=False, description="跳过预创建日志文件以加速生成")
+    zip_output: bool = Field(default=False, description="以内存方式生成并输出ZIP包")
 
     # 拓扑控制
     no_links: bool = Field(default=False, description="仅生成节点，不生成链路（Containerlab配置中不包含links部分）")
