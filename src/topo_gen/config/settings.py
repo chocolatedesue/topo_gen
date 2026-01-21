@@ -12,6 +12,7 @@ from .defaults import (
     CONTAINER_DEFAULT_CPU_SET,
     CONTAINER_DEFAULT_MEMORY_LIMIT,
     DISABLE_LOGGING_DEFAULT,
+    SKIP_LOG_FILES_DEFAULT,
     ENABLE_DEFAULT_BFD,
     ENABLE_DEFAULT_BGP,
     ENABLE_DEFAULT_ISIS,
@@ -85,6 +86,7 @@ class AppSettings(BaseSettings):
     dummy_gen_protocols: Set[str] = Field(default_factory=set)
     no_config_protocols: Set[str] = Field(default_factory=set)
     disable_logging: bool = Field(default=DISABLE_LOGGING_DEFAULT)
+    skip_log_files: bool = Field(default=SKIP_LOG_FILES_DEFAULT)
 
     # Container resource limits
     cpu_limit: float = Field(default=CONTAINER_DEFAULT_CPU_LIMIT, description="CPU limit per container")

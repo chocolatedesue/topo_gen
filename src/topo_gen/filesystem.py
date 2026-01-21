@@ -44,7 +44,8 @@ class FileSystemManager:
     async def create_directory_structure(
         self,
         routers: List[RouterInfo],
-        max_workers: int = 4
+        max_workers: int = 4,
+        skip_log_files: bool = False
     ) -> Result:
         """创建目录结构"""
         try:
@@ -56,7 +57,12 @@ class FileSystemManager:
                 semaphore = anyio.Semaphore(max_workers)
                 async with anyio.create_task_group() as tg:
                     for router in routers:
-                        tg.start_soon(self._create_router_directories_guarded, router, semaphore)
+                        tg.start_soon(
+                            self._create_router_directories_guarded,
+                            router,
+                            semaphore,
+                            skip_log_files
+                        )
             
             return Success(f"成功创建 {len(routers)} 个路由器目录")
             
@@ -74,7 +80,7 @@ class FileSystemManager:
         configs_path = base_path / "configs"
         await configs_path.mkdir(exist_ok=True)
     
-    async def _create_router_directories(self, router: RouterInfo):
+    async def _create_router_directories(self, router: RouterInfo, skip_log_files: bool):
         """为单个路由器创建目录"""
         router_path = AsyncPath(self.base_dir) / "etc" / router.name
         await router_path.mkdir(parents=True, exist_ok=True)
@@ -87,24 +93,26 @@ class FileSystemManager:
         log_path = router_path / "log"
         await log_path.mkdir(exist_ok=True)
         
-        # 创建日志文件
-        log_files = ["zebra.log", "ospf6d.log", "bgpd.log", "bfdd.log", "staticd.log", "route.json", "isisd.log"]
-        for log_file in log_files:
-            log_file_path = log_path / log_file
-            await log_file_path.touch()
-            # 设置权限为777
-            import os
-            await anyio.to_thread.run_sync(
-                os.chmod, str(log_file_path), stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO
-            )
+        if not skip_log_files:
+            # 创建日志文件
+            log_files = ["zebra.log", "ospf6d.log", "bgpd.log", "bfdd.log", "staticd.log", "route.json", "isisd.log"]
+            for log_file in log_files:
+                log_file_path = log_path / log_file
+                await log_file_path.touch()
+                # 设置权限为777
+                import os
+                await anyio.to_thread.run_sync(
+                    os.chmod, str(log_file_path), stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO
+                )
 
     async def _create_router_directories_guarded(
         self,
         router: RouterInfo,
-        semaphore: anyio.Semaphore
+        semaphore: anyio.Semaphore,
+        skip_log_files: bool
     ) -> None:
         async with semaphore:
-            await self._create_router_directories(router)
+            await self._create_router_directories(router, skip_log_files)
     
     async def write_template_files(
         self,
@@ -268,6 +276,7 @@ class FileSystemManager:
                     file_path = conf_path / config_type
                     async with await file_path.open('w') as f:
                         await f.write(content)
+
 
     async def _write_router_configs_guarded(
         self,
@@ -489,7 +498,11 @@ async def create_all_directories(
 
     fs_manager = FileSystemManager(base_dir)
     max_workers = requirements.max_workers_filesystem if requirements else 4
-    return await fs_manager.create_directory_structure(routers, max_workers=max_workers)
+    return await fs_manager.create_directory_structure(
+        routers,
+        max_workers=max_workers,
+        skip_log_files=getattr(config, "skip_log_files", False)
+    )
 
 
 async def create_all_template_files(
