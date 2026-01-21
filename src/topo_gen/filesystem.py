@@ -41,15 +41,22 @@ class FileSystemManager:
     def __init__(self, base_dir: Path):
         self.base_dir = Path(base_dir)
     
-    async def create_directory_structure(self, routers: List[RouterInfo]) -> Result:
+    async def create_directory_structure(
+        self,
+        routers: List[RouterInfo],
+        max_workers: int = 4
+    ) -> Result:
         """创建目录结构"""
         try:
             # 创建基础目录
             await self._create_base_directories()
             
             # 为每个路由器创建目录
-            for router in routers:
-                await self._create_router_directories(router)
+            if routers:
+                semaphore = anyio.Semaphore(max_workers)
+                async with anyio.create_task_group() as tg:
+                    for router in routers:
+                        tg.start_soon(self._create_router_directories_guarded, router, semaphore)
             
             return Success(f"成功创建 {len(routers)} 个路由器目录")
             
@@ -90,12 +97,28 @@ class FileSystemManager:
             await anyio.to_thread.run_sync(
                 os.chmod, str(log_file_path), stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO
             )
+
+    async def _create_router_directories_guarded(
+        self,
+        router: RouterInfo,
+        semaphore: anyio.Semaphore
+    ) -> None:
+        async with semaphore:
+            await self._create_router_directories(router)
     
-    async def write_template_files(self, routers: List[RouterInfo], config: TopologyConfig = None) -> Result:
+    async def write_template_files(
+        self,
+        routers: List[RouterInfo],
+        config: TopologyConfig = None,
+        max_workers: int = 4
+    ) -> Result:
         """写入模板文件"""
         try:
-            for router in routers:
-                await self._write_router_templates(router, config)
+            if routers:
+                semaphore = anyio.Semaphore(max_workers)
+                async with anyio.create_task_group() as tg:
+                    for router in routers:
+                        tg.start_soon(self._write_router_templates_guarded, router, config, semaphore)
 
             return Success(f"成功写入 {len(routers)} 个路由器的模板文件")
 
@@ -111,12 +134,22 @@ class FileSystemManager:
             file_path = conf_path / template_name
             async with await file_path.open('w') as f:
                 await f.write(content)
+
+    async def _write_router_templates_guarded(
+        self,
+        router: RouterInfo,
+        config: TopologyConfig,
+        semaphore: anyio.Semaphore
+    ) -> None:
+        async with semaphore:
+            await self._write_router_templates(router, config)
     
     async def write_config_files(
         self, 
         routers: List[RouterInfo], 
         config: TopologyConfig,
-        interface_mappings: Dict[RouterName, Dict[str, str]]
+        interface_mappings: Dict[RouterName, Dict[str, str]],
+        max_workers: int = 6
     ) -> Result:
         """写入配置文件"""
         try:
@@ -133,9 +166,29 @@ class FileSystemManager:
 
             if config.enable_bfd:
                 config_types.append("bfdd.conf")
-            
-            for router in routers:
-                await self._write_router_configs(router, config, config_types, interface_mappings)
+
+            generators = {
+                config_type: ConfigGeneratorFactory.create(config_type)
+                for config_type in config_types
+            }
+            stale_candidates = {"ospf6d.conf", "isisd.conf", "bgpd.conf", "bfdd.conf"}
+            allowed_now = set(config_types)
+
+            if routers:
+                semaphore = anyio.Semaphore(max_workers)
+                async with anyio.create_task_group() as tg:
+                    for router in routers:
+                        tg.start_soon(
+                            self._write_router_configs_guarded,
+                            router,
+                            config,
+                            config_types,
+                            generators,
+                            interface_mappings,
+                            stale_candidates,
+                            allowed_now,
+                            semaphore
+                        )
             
             return Success(f"成功写入 {len(routers)} 个路由器的配置文件")
             
@@ -147,7 +200,10 @@ class FileSystemManager:
         router: RouterInfo, 
         config: TopologyConfig,
         config_types: List[str],
-        interface_mappings: Dict[RouterName, Dict[str, str]]
+        generators: Dict[str, object],
+        interface_mappings: Dict[RouterName, Dict[str, str]],
+        stale_candidates: set[str],
+        allowed_now: set[str]
     ):
         """为单个路由器写入配置文件"""
         conf_path = AsyncPath(self.base_dir) / "etc" / router.name / "conf"
@@ -158,8 +214,6 @@ class FileSystemManager:
         
         # 在写入前，清理与当前启用协议不一致的旧配置文件
         # 仅处理我们生成的协议配置文件，避免误删其他文件
-        stale_candidates = {"ospf6d.conf", "isisd.conf", "bgpd.conf", "bfdd.conf"}
-        allowed_now = set(config_types)
         for fname in stale_candidates:
             if fname not in allowed_now:
                 file_path = conf_path / fname
@@ -171,7 +225,7 @@ class FileSystemManager:
                     pass
 
         for config_type in config_types:
-            generator = ConfigGeneratorFactory.create(config_type)
+            generator = generators[config_type]
             content = generator.generate(router, config)
 
             # 处理 dummy 生成：如果配置的协议在 dummy 集合中，则将真实内容写到 -bak.conf，并生成空主配置
@@ -214,6 +268,28 @@ class FileSystemManager:
                     file_path = conf_path / config_type
                     async with await file_path.open('w') as f:
                         await f.write(content)
+
+    async def _write_router_configs_guarded(
+        self,
+        router: RouterInfo,
+        config: TopologyConfig,
+        config_types: List[str],
+        generators: Dict[str, object],
+        interface_mappings: Dict[RouterName, Dict[str, str]],
+        stale_candidates: set[str],
+        allowed_now: set[str],
+        semaphore: anyio.Semaphore
+    ) -> None:
+        async with semaphore:
+            await self._write_router_configs(
+                router,
+                config,
+                config_types,
+                generators,
+                interface_mappings,
+                stale_candidates,
+                allowed_now
+            )
     
     async def write_containerlab_yaml(
         self, 
@@ -394,7 +470,7 @@ class FileSystemManager:
 
 # 便利函数
 async def create_all_directories(
-    config: TopologyConfig,
+    config: TopologyConfig, 
     routers: List[RouterInfo],
     requirements: SystemRequirements
 ) -> Result:
@@ -412,7 +488,8 @@ async def create_all_directories(
         base_dir = Path(f"{protocol_suffix}_{get_topology_type_str(config.topology_type)}{config.size}x{config.size}{lsa_only_suffix}")
 
     fs_manager = FileSystemManager(base_dir)
-    return await fs_manager.create_directory_structure(routers)
+    max_workers = requirements.max_workers_filesystem if requirements else 4
+    return await fs_manager.create_directory_structure(routers, max_workers=max_workers)
 
 
 async def create_all_template_files(
@@ -423,7 +500,8 @@ async def create_all_template_files(
 ) -> Result:
     """创建所有模板文件"""
     fs_manager = FileSystemManager(base_dir)
-    return await fs_manager.write_template_files(routers, config)
+    max_workers = requirements.max_workers_filesystem if requirements else 4
+    return await fs_manager.write_template_files(routers, config, max_workers=max_workers)
 
 
 async def generate_all_config_files(
@@ -435,7 +513,13 @@ async def generate_all_config_files(
 ) -> Result:
     """生成所有配置文件"""
     fs_manager = FileSystemManager(base_dir)
-    return await fs_manager.write_config_files(routers, config, interface_mappings)
+    max_workers = requirements.max_workers_config if requirements else 6
+    return await fs_manager.write_config_files(
+        routers,
+        config,
+        interface_mappings,
+        max_workers=max_workers
+    )
 
 
 async def generate_clab_yaml(

@@ -63,8 +63,14 @@ class TopologyEngine:
                     message=f"模板创建失败: {template_result.error}"
                 )
             
-            # 5. 生成接口地址映射
-            interface_mappings = generate_interface_mappings(config, routers)
+            # 5. 生成接口地址映射 / 链路（避免重复计算）
+            if config.no_links:
+                links = []
+                interface_mappings = {router.name: {} for router in routers}
+            else:
+                from .links import generate_all_links
+                links = generate_all_links(config)
+                interface_mappings = generate_interface_mappings(config, routers, links)
             
             # 6. 生成配置文件
             config_result = await generate_all_config_files(
@@ -78,10 +84,10 @@ class TopologyEngine:
             
             # 7. 生成ContainerLab YAML
             if config.no_links:
-                links = []
+                links_for_yaml = []
             else:
-                links = convert_links_to_clab_format(config, routers)
-            yaml_result = await generate_clab_yaml(config, routers, links, base_dir)
+                links_for_yaml = convert_links_to_clab_format(config, routers, links, interface_mappings)
+            yaml_result = await generate_clab_yaml(config, routers, links_for_yaml, base_dir)
             if isinstance(yaml_result, Failure):
                 return GenerationResult(
                     success=False,
@@ -94,7 +100,7 @@ class TopologyEngine:
                 output_dir=base_dir,
                 stats={
                     "total_routers": len(routers),
-                    "total_links": len(links),
+                    "total_links": len(links_for_yaml),
                     "topology_type": get_topology_type_str(config.topology_type),
                     "size": config.size
                 }
@@ -110,16 +116,29 @@ class TopologyEngine:
     def _generate_routers(self, config: TopologyConfig) -> List[RouterInfo]:
         """生成路由器信息"""
         routers = []
+
+        neighbors_func = None
+        if not config.no_links:
+            neighbors_func = TopologyStrategy.get_neighbors_func(
+                config.topology_type,
+                config.size,
+                config.special_config
+            )
         
         for row in range(config.size):
             for col in range(config.size):
                 coord = Coordinate(row, col)
-                router = self._create_router_info(coord, config)
+                router = self._create_router_info(coord, config, neighbors_func)
                 routers.append(router)
         
         return routers
     
-    def _create_router_info(self, coord: Coordinate, config: TopologyConfig) -> RouterInfo:
+    def _create_router_info(
+        self,
+        coord: Coordinate,
+        config: TopologyConfig,
+        neighbors_func=None
+    ) -> RouterInfo:
         """创建单个路由器信息"""
         router_name = f"router_{coord.row:02d}_{coord.col:02d}"
         router_id = f"10.{coord.row}.{coord.col}.1"
@@ -137,10 +156,10 @@ class TopologyEngine:
         if config.no_links:
             neighbors = {}
         else:
-            neighbors = self._get_neighbors(coord, config)
-        
-        # 确定区域ID
-        area_id = self._calculate_area_id(coord, config)
+            if neighbors_func is None:
+                neighbors = self._get_neighbors(coord, config)
+            else:
+                neighbors = neighbors_func(coord)
         
         # 确定AS号（如果启用BGP）
         as_number = None

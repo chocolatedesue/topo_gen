@@ -11,6 +11,9 @@ def get_templates_dir() -> Path:
     return Path(__file__).with_suffix("").parent / "templates"
 
 
+_JINJA_ENV: Environment | None = None
+
+
 def create_jinja_env() -> Environment:
     templates_dir = get_templates_dir()
     env = Environment(
@@ -23,8 +26,10 @@ def create_jinja_env() -> Environment:
 
 
 def render_template(template_name: str, context: Dict[str, Any]) -> str:
-    env = create_jinja_env()
+    global _JINJA_ENV
+    if _JINJA_ENV is None:
+        _JINJA_ENV = create_jinja_env()
+    env = _JINJA_ENV
     template = env.get_template(template_name)
     return template.render(**context)
-
 

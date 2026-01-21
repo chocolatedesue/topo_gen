@@ -57,9 +57,6 @@ def generate_link_ipv6(size: int, coord1: Coordinate, coord2: Coordinate) -> Lin
     else:
         link_id = (node1_id + node2_id) * (node1_id + node2_id + 1) // 2 + node1_id
 
-    # 使用2001:db8:2000::/48作为链路地址空间
-    base_network = ipaddress.IPv6Network("2001:db8:2000::/48")
-
     # 每个链路使用/126子网，这样有4个地址可选，我们选择::1和::3（均为奇数，规避网络样式地址）
     subnet_bits = 126 - 48  # 78位用于子网编号
     subnet_id = link_id % (2 ** subnet_bits)
@@ -89,7 +86,7 @@ def generate_link_ipv6(size: int, coord1: Coordinate, coord2: Coordinate) -> Lin
 
     # 接口配置仍然使用/127前缀（点到点常见做法）
     # 注意：两个地址分别落在相邻的 /127 中，这里 LinkAddress.network 记录 /126 以表达完整链路网段
-    link_network = ipaddress.IPv6Network(f"2001:db8:2000:{ipv6_suffix}::/126")
+    link_network = link_network_126
 
     router1_name = f"router_{coord1.row:02d}_{coord1.col:02d}"
     router2_name = f"router_{coord2.row:02d}_{coord2.col:02d}"
@@ -217,48 +214,59 @@ def generate_all_links(config: TopologyConfig) -> List[LinkAddress]:
 
     else:
         # 标准拓扑处理
-        neighbors_factory = get_neighbors_func(config.topology_type, config.size)
-        for row in range(config.size):
-            for col in range(config.size):
-                coord = Coordinate(row, col)
-                neighbors = neighbors_factory(coord)
+        if config.topology_type == TopologyType.TORUS and config.size > 1:
+            size = config.size
+            for row in range(size):
+                for col in range(size):
+                    coord = Coordinate(row, col)
 
-                for neighbor_coord in neighbors.values():
-                    pair = tuple(sorted([
-                        (coord.row, coord.col),
-                        (neighbor_coord.row, neighbor_coord.col)
-                    ]))
+                    # 水平链路：每个节点只连接东侧（含环绕）
+                    east_coord = Coordinate(row, (col + 1) % size)
+                    links.append(generate_link_ipv6(size, coord, east_coord))
 
-                    if pair not in processed_pairs:
-                        processed_pairs.add(pair)
-                        link = generate_link_ipv6(config.size, coord, neighbor_coord)
-                        links.append(link)
+                    # 垂直链路：每个节点只连接南侧（含环绕）
+                    south_coord = Coordinate((row + 1) % size, col)
+                    links.append(generate_link_ipv6(size, coord, south_coord))
+        else:
+            neighbors_factory = get_neighbors_func(config.topology_type, config.size)
+            for row in range(config.size):
+                for col in range(config.size):
+                    coord = Coordinate(row, col)
+                    neighbors = neighbors_factory(coord)
+
+                    for neighbor_coord in neighbors.values():
+                        pair = tuple(sorted([
+                            (coord.row, coord.col),
+                            (neighbor_coord.row, neighbor_coord.col)
+                        ]))
+
+                        if pair not in processed_pairs:
+                            processed_pairs.add(pair)
+                            link = generate_link_ipv6(config.size, coord, neighbor_coord)
+                            links.append(link)
 
     return links
 
 
 def generate_interface_mappings(
     config: TopologyConfig,
-    routers: List[RouterInfo]
+    routers: List[RouterInfo],
+    links: List[LinkAddress] | None = None
 ) -> Dict[str, Dict[str, str]]:
     """生成所有路由器的接口地址映射"""
-    links = generate_all_links(config)
+    if links is None:
+        links = generate_all_links(config)
     neighbors_func = get_neighbors_func(config.topology_type, config.size, config.special_config)
 
     # 初始化接口映射
     interface_mappings = {router.name: {} for router in routers}
+    router_coords = {router.name: router.coordinate for router in routers}
 
     # 为每个链路分配接口
     for link in links:
         # 找到两个路由器的坐标
-        router1_coord = None
-        router2_coord = None
-
-        for router in routers:
-            if router.name == link.router1_name:
-                router1_coord = router.coordinate
-            elif router.name == link.router2_name:
-                router2_coord = router.coordinate
+        router1_coord = router_coords.get(link.router1_name)
+        router2_coord = router_coords.get(link.router2_name)
 
         if router1_coord is None or router2_coord is None:
             continue
@@ -342,34 +350,33 @@ def find_available_direction(coord: Coordinate, neighbors_func) -> Direction:
 
 def convert_links_to_clab_format(
     config: TopologyConfig,
-    routers: List[RouterInfo]
+    routers: List[RouterInfo],
+    links: List[LinkAddress] | None = None,
+    interface_mappings: Dict[str, Dict[str, str]] | None = None
 ) -> List[Tuple[str, str, str, str]]:
     """将链路信息转换为ContainerLab格式"""
-    links = generate_all_links(config)
+    if links is None:
+        links = generate_all_links(config)
     clab_links = []
 
     # 生成正确的接口映射
-    interface_mappings = generate_interface_mappings(config, routers)
+    if interface_mappings is None:
+        interface_mappings = generate_interface_mappings(config, routers, links)
+
+    # 预构建反向索引：addr -> interface
+    addr_to_interface: Dict[str, Dict[str, str]] = {}
+    for router_name, mapping in interface_mappings.items():
+        addr_to_interface[router_name] = {addr: intf for intf, addr in mapping.items()}
 
     # 为每个链路生成ContainerLab格式
     for link in links:
         # 从接口映射中找到对应的接口
-        router1_interfaces = interface_mappings.get(link.router1_name, {})
-        router2_interfaces = interface_mappings.get(link.router2_name, {})
+        router1_interfaces = addr_to_interface.get(link.router1_name, {})
+        router2_interfaces = addr_to_interface.get(link.router2_name, {})
 
         # 找到使用了这个链路地址的接口
-        intf1 = None
-        intf2 = None
-
-        for interface, addr in router1_interfaces.items():
-            if addr == link.router1_addr:
-                intf1 = interface
-                break
-
-        for interface, addr in router2_interfaces.items():
-            if addr == link.router2_addr:
-                intf2 = interface
-                break
+        intf1 = router1_interfaces.get(link.router1_addr)
+        intf2 = router2_interfaces.get(link.router2_addr)
 
         if intf1 and intf2:
             clab_links.append((link.router1_name, intf1, link.router2_name, intf2))
