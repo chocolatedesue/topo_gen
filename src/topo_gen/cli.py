@@ -164,6 +164,12 @@ def validate_size(size: int) -> int:
         raise typer.BadParameter("网格大小必须在2-100之间")
     return size
 
+def validate_optional_size(value: Optional[int]) -> Optional[int]:
+    """验证可选网格大小"""
+    if value is None:
+        return None
+    return validate_size(value)
+
 def validate_as_number(as_number: int) -> int:
     """验证AS号"""
     if not (1 <= as_number <= 4294967295):
@@ -259,8 +265,8 @@ def generate_topology_command(
     topology_type: TopologyType = typer.Argument(..., help="拓扑类型 (grid/torus/strip)"),
     size: int = typer.Argument(..., help="网格大小", callback=validate_size),
     # Torus 矩形参数
-    rows: Optional[int] = typer.Option(None, "--rows", "--length", help="Torus行数/长度", callback=validate_size),
-    cols: Optional[int] = typer.Option(None, "--cols", "--width", help="Torus列数/宽度", callback=validate_size),
+    rows: Optional[int] = typer.Option(None, "--rows", "--length", help="Torus行数/长度", callback=validate_optional_size),
+    cols: Optional[int] = typer.Option(None, "--cols", "--width", help="Torus列数/宽度", callback=validate_optional_size),
     # 基础拓扑选项
     multi_area: bool = typer.Option(False, "--multi-area", help="启用多区域"),
     area_size: Optional[int] = typer.Option(None, "--area-size", help="区域大小"),
