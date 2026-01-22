@@ -18,7 +18,7 @@ from .core.types import RouterName, Success, Failure, Result
 from .core.models import TopologyConfig, RouterInfo, SystemRequirements
 from .generators.config import ConfigGeneratorFactory
 from .generators.templates import generate_all_templates
-from .utils.topo import get_topology_type_str
+from .utils.topo import get_topology_type_str, get_topology_size_label
 
 def get_protocol_suffix(config: TopologyConfig) -> str:
     """获取协议后缀标识"""
@@ -315,7 +315,7 @@ class FileSystemManager:
             # 确定文件名
             topo_type = get_topology_type_str(config.topology_type)
             protocol_suffix = get_protocol_suffix(config)
-            yaml_filename = f"{protocol_suffix}_{topo_type}{config.size}x{config.size}.clab.yaml"
+            yaml_filename = f"{protocol_suffix}_{topo_type}{get_topology_size_label(config)}.clab.yaml"
             
             yaml_path = AsyncPath(self.base_dir) / yaml_filename
             async with await yaml_path.open('w') as f:
@@ -458,7 +458,7 @@ class FileSystemManager:
         # 生成完整配置
         protocol_suffix = get_protocol_suffix(config)
         clab_config = {
-            "name": f"{protocol_suffix.replace('_', '-')}-{topo_suffix}{config.size}x{config.size}",
+            "name": f"{protocol_suffix.replace('_', '-')}-{topo_suffix}{get_topology_size_label(config)}",
             "mgmt": {
                 "ipv4-subnet": "10.0.0.0/16",
                 "ipv6-subnet": "2001:db8::/64",
@@ -496,7 +496,7 @@ async def create_all_directories(
         if config.ospf_config and config.ospf_config.lsa_only_mode:
             lsa_only_suffix = "_lsa_only"
         
-        base_dir = Path(f"{protocol_suffix}_{get_topology_type_str(config.topology_type)}{config.size}x{config.size}{lsa_only_suffix}")
+        base_dir = Path(f"{protocol_suffix}_{get_topology_type_str(config.topology_type)}{get_topology_size_label(config)}{lsa_only_suffix}")
 
     fs_manager = FileSystemManager(base_dir)
     max_workers = requirements.max_workers_filesystem if requirements else 4
@@ -634,11 +634,11 @@ async def generate_zip_archive(
 
         topo_type = get_topology_type_str(config.topology_type)
         protocol_suffix = get_protocol_suffix(config)
-        yaml_filename = f"{protocol_suffix}_{topo_type}{config.size}x{config.size}.clab.yaml"
+        yaml_filename = f"{protocol_suffix}_{topo_type}{get_topology_size_label(config)}.clab.yaml"
         file_map[yaml_filename] = yaml_content
 
         # ZIP 输出
-        zip_filename = f"{protocol_suffix}_{topo_type}{config.size}x{config.size}.zip"
+        zip_filename = f"{protocol_suffix}_{topo_type}{get_topology_size_label(config)}.zip"
         base_dir_path = Path(base_dir)
         base_dir_path.mkdir(parents=True, exist_ok=True)
         zip_path = base_dir_path / zip_filename

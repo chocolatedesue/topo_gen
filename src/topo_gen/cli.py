@@ -67,6 +67,7 @@ from .topology.strip import validate_strip_topology
 from .engine import generate_topology
 from .config.settings import AppSettings
 from .utils.logging import configure_logging, get_logger
+from .utils.topo import get_topology_size_label, get_topology_dimensions
 
 # 创建应用和控制台
 app = typer.Typer(
@@ -178,7 +179,7 @@ def display_topology_info(config: TopologyConfig):
     
     topology_display = config.topology_type.upper() if isinstance(config.topology_type, str) else config.topology_type.value.upper()
     table.add_row("拓扑类型", topology_display)
-    table.add_row("网格大小", f"{config.size}x{config.size}")
+    table.add_row("网格大小", get_topology_size_label(config))
     table.add_row("总路由器数", str(config.total_routers))
     table.add_row("总链路数", str(config.total_links))
     table.add_row("多区域", "是" if config.multi_area else "否")
@@ -257,6 +258,9 @@ def _run_with_progress(task_desc: str, config: TopologyConfig):
 def generate_topology_command(
     topology_type: TopologyType = typer.Argument(..., help="拓扑类型 (grid/torus/strip)"),
     size: int = typer.Argument(..., help="网格大小", callback=validate_size),
+    # Torus 矩形参数
+    rows: Optional[int] = typer.Option(None, "--rows", "--length", help="Torus行数/长度", callback=validate_size),
+    cols: Optional[int] = typer.Option(None, "--cols", "--width", help="Torus列数/宽度", callback=validate_size),
     # 基础拓扑选项
     multi_area: bool = typer.Option(False, "--multi-area", help="启用多区域"),
     area_size: Optional[int] = typer.Option(None, "--area-size", help="区域大小"),
@@ -321,6 +325,7 @@ def generate_topology_command(
     Examples:
       generate grid 5          # 生成 5x5 Grid 拓扑
       generate torus 4         # 生成 4x4 Torus 拓扑  
+      generate torus 4 --cols 6  # 生成 4x6 Torus 拓扑
       generate strip 6         # 生成 6x6 条带拓扑（纵向环绕）
       generate grid 3 --enable-isis  # 启用 ISIS 的 Grid 拓扑
     """
@@ -329,6 +334,8 @@ def generate_topology_command(
     try:
         config = TopologyConfig(
             size=size,
+            rows=rows,
+            cols=cols,
             topology_type=topology_type,
             multi_area=multi_area,
             area_size=area_size,
@@ -389,7 +396,8 @@ def generate_topology_command(
     if topology_type == TopologyType.GRID:
         validation_errors = validate_grid_topology(size)
     elif topology_type == TopologyType.TORUS:
-        validation_errors = validate_torus_topology(size)
+        rows_value, cols_value = get_topology_dimensions(config)
+        validation_errors = validate_torus_topology(rows_value, cols_value)
     elif topology_type == TopologyType.STRIP:
         validation_errors = validate_strip_topology(size)
     else:
@@ -471,6 +479,8 @@ def generate_from_config(
 
         config = TopologyConfig(
             size=app_settings.size,
+            rows=app_settings.rows,
+            cols=app_settings.cols,
             topology_type=topo_type,
             multi_area=app_settings.multi_area,
             area_size=app_settings.area_size,

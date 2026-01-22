@@ -138,16 +138,24 @@ def get_neighbor_in_direction(coord: Coordinate, direction: Direction, size: int
 
     return None
 
-def get_torus_neighbor_in_direction(coord: Coordinate, direction: Direction, size: int) -> Coordinate:
+def get_torus_neighbor_in_direction(
+    coord: Coordinate,
+    direction: Direction,
+    rows: int,
+    cols: Optional[int] = None
+) -> Coordinate:
     """获取Torus拓扑中指定方向的邻居坐标（环绕）"""
     # 直接计算新坐标，避免创建可能无效的中间坐标
     vector = direction.vector
     new_row = coord.row + vector.row
     new_col = coord.col + vector.col
 
+    if cols is None:
+        cols = rows
+
     # Torus环绕 - 处理负值
-    wrapped_row = new_row % size
-    wrapped_col = new_col % size
+    wrapped_row = new_row % rows
+    wrapped_col = new_col % cols
 
     return Coordinate(wrapped_row, wrapped_col)
 

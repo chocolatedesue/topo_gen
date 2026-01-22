@@ -23,7 +23,7 @@ from .filesystem import (
 from .links import generate_interface_mappings, convert_links_to_clab_format, generate_loopback_ipv6
 from .topology.special import filter_routers_for_special_topology
 from .topology.strategies import TopologyStrategy
-from .utils.topo import get_topology_type_str
+from .utils.topo import get_topology_type_str, get_topology_dimensions, get_topology_size_label
 
 
 class TopologyEngine:
@@ -158,14 +158,17 @@ class TopologyEngine:
 
         neighbors_func = None
         if not config.no_links:
+            rows, cols = get_topology_dimensions(config)
             neighbors_func = TopologyStrategy.get_neighbors_func(
                 config.topology_type,
-                config.size,
+                rows,
+                cols,
                 config.special_config
             )
         
-        for row in range(config.size):
-            for col in range(config.size):
+        rows, cols = get_topology_dimensions(config)
+        for row in range(rows):
+            for col in range(cols):
                 coord = Coordinate(row, col)
                 router = self._create_router_info(coord, config, neighbors_func)
                 routers.append(router)
@@ -219,18 +222,22 @@ class TopologyEngine:
     
     def _get_node_type(self, coord: Coordinate, config: TopologyConfig) -> NodeType:
         """获取节点类型 - 使用统一策略接口"""
+        rows, cols = get_topology_dimensions(config)
         return TopologyStrategy.get_node_type(
             coord,
             config.topology_type,
-            config.size,
+            rows,
+            cols,
             config.special_config
         )
     
     def _get_neighbors(self, coord: Coordinate, config: TopologyConfig) -> NeighborMap:
         """获取邻居节点 - 使用统一策略接口"""
+        rows, cols = get_topology_dimensions(config)
         neighbors_func = TopologyStrategy.get_neighbors_func(
             config.topology_type,
-            config.size,
+            rows,
+            cols,
             config.special_config
         )
         return neighbors_func(coord)
@@ -280,7 +287,7 @@ class TopologyEngine:
         if config.ospf_config and config.ospf_config.lsa_only_mode:
             lsa_only_suffix = "_lsa_only"
         
-        return Path(f"{protocol_suffix}_{topo_type}{config.size}x{config.size}{lsa_only_suffix}")
+        return Path(f"{protocol_suffix}_{topo_type}{get_topology_size_label(config)}{lsa_only_suffix}")
 
 
 # 便利函数

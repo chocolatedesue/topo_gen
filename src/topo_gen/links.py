@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple, Set
+from typing import Dict, List, Tuple, Set, Optional
 import ipaddress
 from dataclasses import dataclass
 
@@ -15,7 +15,7 @@ from .core.types import (
 )
 from .core.types import TopologyType
 from .core.models import TopologyConfig, RouterInfo
-from .utils.topo import get_topology_type_str
+from .utils.topo import get_topology_type_str, get_topology_dimensions
 from .utils.direction import calculate_direction
 from .topology.grid import get_grid_neighbors as grid_neighbors_factory
 from .topology.torus import get_torus_neighbors as torus_neighbors_factory
@@ -34,7 +34,7 @@ class LinkAddress:
     router2_name: str
 
 
-def generate_link_ipv6(size: int, coord1: Coordinate, coord2: Coordinate) -> LinkAddress:
+def generate_link_ipv6(col_count: int, coord1: Coordinate, coord2: Coordinate) -> LinkAddress:
     """生成链路IPv6地址对
 
     策略：
@@ -43,8 +43,8 @@ def generate_link_ipv6(size: int, coord1: Coordinate, coord2: Coordinate) -> Lin
     - 接口前缀仍使用 /127（点到点常用做法）
     """
     # 确保节点顺序一致性
-    node1_id = coord1.row * size + coord1.col
-    node2_id = coord2.row * size + coord2.col
+    node1_id = coord1.row * col_count + coord1.col
+    node2_id = coord2.row * col_count + coord2.col
 
     if node1_id > node2_id:
         coord1, coord2 = coord2, coord1
@@ -100,10 +100,15 @@ def generate_link_ipv6(size: int, coord1: Coordinate, coord2: Coordinate) -> Lin
     )
 
 
-def get_neighbors_func(topology_type: TopologyType, size: int, special_config=None):
+def get_neighbors_func(
+    topology_type: TopologyType,
+    rows: int,
+    cols: Optional[int] = None,
+    special_config=None
+):
     """获取邻居函数（使用统一策略）"""
     from .topology.strategies import TopologyStrategy
-    return TopologyStrategy.get_neighbors_func(topology_type, size, special_config)
+    return TopologyStrategy.get_neighbors_func(topology_type, rows, cols, special_config)
 
 
 # 统一后，links 模块不再维护自己的 grid/torus 邻居计算，
@@ -142,7 +147,7 @@ def get_special_neighbors(coord: Coordinate, size: int, special_config) -> Dict[
     # 1. 首先获取基础拓扑的邻居（过滤跨区域连接）
     if special_config.include_base_connections:
         if special_config.base_topology == TopologyType.TORUS:
-            neighbors = get_torus_neighbors(coord, size)
+            neighbors = torus_neighbors_factory(size)(coord)
         else:  # GRID - 使用过滤后的邻居
             neighbors = get_filtered_grid_neighbors(coord, size)
 
@@ -157,6 +162,8 @@ def generate_all_links(config: TopologyConfig) -> List[LinkAddress]:
     """生成所有链路信息"""
     processed_pairs = set()
     links = []
+    rows, cols = get_topology_dimensions(config)
+    col_count = cols
 
     # 处理字符串和枚举值的比较
     is_special = (config.topology_type == TopologyType.SPECIAL or
@@ -169,8 +176,8 @@ def generate_all_links(config: TopologyConfig) -> List[LinkAddress]:
         if config.special_config.include_base_connections:
             from .topology.special import get_filtered_grid_neighbors
 
-            for row in range(config.size):
-                for col in range(config.size):
+            for row in range(rows):
+                for col in range(cols):
                     coord = Coordinate(row, col)
 
                     # Special 拓扑始终使用过滤后的 grid 邻居作为基础
@@ -185,7 +192,7 @@ def generate_all_links(config: TopologyConfig) -> List[LinkAddress]:
 
                         if pair not in processed_pairs:
                             processed_pairs.add(pair)
-                            link = generate_link_ipv6(config.size, coord, neighbor_coord)
+                            link = generate_link_ipv6(col_count, coord, neighbor_coord)
                             links.append(link)
 
         # 2. 添加内部桥接连接（在ContainerLab中创建）
@@ -197,7 +204,7 @@ def generate_all_links(config: TopologyConfig) -> List[LinkAddress]:
 
             if pair not in processed_pairs:
                 processed_pairs.add(pair)
-                link = generate_link_ipv6(config.size, edge[0], edge[1])
+                link = generate_link_ipv6(col_count, edge[0], edge[1])
                 links.append(link)
 
         # 3. 添加torus桥接连接（为gateway节点提供额外接口用于BGP）
@@ -209,28 +216,27 @@ def generate_all_links(config: TopologyConfig) -> List[LinkAddress]:
 
             if pair not in processed_pairs:
                 processed_pairs.add(pair)
-                link = generate_link_ipv6(config.size, edge[0], edge[1])
+                link = generate_link_ipv6(col_count, edge[0], edge[1])
                 links.append(link)
 
     else:
         # 标准拓扑处理
-        if config.topology_type == TopologyType.TORUS and config.size > 1:
-            size = config.size
-            for row in range(size):
-                for col in range(size):
+        if config.topology_type == TopologyType.TORUS and rows > 1 and cols > 1:
+            for row in range(rows):
+                for col in range(cols):
                     coord = Coordinate(row, col)
 
                     # 水平链路：每个节点只连接东侧（含环绕）
-                    east_coord = Coordinate(row, (col + 1) % size)
-                    links.append(generate_link_ipv6(size, coord, east_coord))
+                    east_coord = Coordinate(row, (col + 1) % cols)
+                    links.append(generate_link_ipv6(col_count, coord, east_coord))
 
                     # 垂直链路：每个节点只连接南侧（含环绕）
-                    south_coord = Coordinate((row + 1) % size, col)
-                    links.append(generate_link_ipv6(size, coord, south_coord))
+                    south_coord = Coordinate((row + 1) % rows, col)
+                    links.append(generate_link_ipv6(col_count, coord, south_coord))
         else:
-            neighbors_factory = get_neighbors_func(config.topology_type, config.size)
-            for row in range(config.size):
-                for col in range(config.size):
+            neighbors_factory = get_neighbors_func(config.topology_type, rows, cols)
+            for row in range(rows):
+                for col in range(cols):
                     coord = Coordinate(row, col)
                     neighbors = neighbors_factory(coord)
 
@@ -242,7 +248,7 @@ def generate_all_links(config: TopologyConfig) -> List[LinkAddress]:
 
                         if pair not in processed_pairs:
                             processed_pairs.add(pair)
-                            link = generate_link_ipv6(config.size, coord, neighbor_coord)
+                            link = generate_link_ipv6(col_count, coord, neighbor_coord)
                             links.append(link)
 
     return links
@@ -256,7 +262,9 @@ def generate_interface_mappings(
     """生成所有路由器的接口地址映射"""
     if links is None:
         links = generate_all_links(config)
-    neighbors_func = get_neighbors_func(config.topology_type, config.size, config.special_config)
+    rows, cols = get_topology_dimensions(config)
+    col_count = cols
+    neighbors_func = get_neighbors_func(config.topology_type, rows, cols, config.special_config)
 
     # 初始化接口映射
     interface_mappings = {router.name: {} for router in routers}
@@ -272,7 +280,7 @@ def generate_interface_mappings(
             continue
 
         # 计算方向
-        direction1 = calculate_direction(router1_coord, router2_coord, config.size)
+        direction1 = calculate_direction(router1_coord, router2_coord, rows, cols)
         if direction1 is None:
             # 对于特殊连接，使用可用的接口
             direction1 = find_available_direction(router1_coord, neighbors_func)
@@ -301,10 +309,10 @@ def generate_interface_mappings(
             # 检查这些路由器是否在当前路由器列表中
             if router1_name in interface_mappings and router2_name in interface_mappings:
                 # 生成链路地址
-                link = generate_link_ipv6(config.size, coord1, coord2)
+                link = generate_link_ipv6(col_count, coord1, coord2)
 
                 # 计算方向
-                direction1 = calculate_direction(coord1, coord2, config.size)
+                direction1 = calculate_direction(coord1, coord2, rows, cols)
                 if direction1 is None:
                     # 对于Torus桥接，可能需要特殊处理方向
                     direction1 = find_available_direction_for_torus_bridge(coord1, interface_mappings[router1_name])
@@ -396,7 +404,12 @@ def generate_loopback_ipv6(area_id: int, coord: Coordinate) -> str:
     return address  # 不包含前缀，因为RouterInfo.loopback_ipv6字段期望纯地址
 
 
-def calculate_direction(from_coord: Coordinate, to_coord: Coordinate, size: int = 6) -> Optional[Direction]:
+def calculate_direction(
+    from_coord: Coordinate,
+    to_coord: Coordinate,
+    rows: int = 6,
+    cols: Optional[int] = None
+) -> Optional[Direction]:
     """计算从一个坐标到另一个坐标的方向"""
     row_diff = to_coord.row - from_coord.row
     col_diff = to_coord.col - from_coord.col
@@ -411,19 +424,23 @@ def calculate_direction(from_coord: Coordinate, to_coord: Coordinate, size: int 
     elif row_diff == 0 and col_diff == 1:
         return Direction.EAST
 
+    if cols is None:
+        cols = rows
+
     # Torus环绕连接（动态处理任意大小网格）
-    wrap_distance = size - 1
+    wrap_row = rows - 1
+    wrap_col = cols - 1
 
     # 北-南环绕：选择更短的路径
-    if row_diff == wrap_distance and col_diff == 0:  # (0,x) -> (size-1,x) - 向北环绕更短
+    if row_diff == wrap_row and col_diff == 0:  # (0,x) -> (size-1,x) - 向北环绕更短
         return Direction.NORTH
-    elif row_diff == -wrap_distance and col_diff == 0:  # (size-1,x) -> (0,x) - 向南环绕更短
+    elif row_diff == -wrap_row and col_diff == 0:  # (size-1,x) -> (0,x) - 向南环绕更短
         return Direction.SOUTH
 
     # 东-西环绕：选择更短的路径
-    if row_diff == 0 and col_diff == wrap_distance:  # (x,0) -> (x,size-1) - 向西环绕更短
+    if row_diff == 0 and col_diff == wrap_col:  # (x,0) -> (x,size-1) - 向西环绕更短
         return Direction.WEST
-    elif row_diff == 0 and col_diff == -wrap_distance:  # (x,size-1) -> (x,0) - 向东环绕更短
+    elif row_diff == 0 and col_diff == -wrap_col:  # (x,size-1) -> (x,0) - 向东环绕更短
         return Direction.EAST
 
     # 对角连接（Torus桥接或特殊连接）

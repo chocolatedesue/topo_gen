@@ -53,6 +53,8 @@ class AppSettings(BaseSettings):
 
     # 通用拓扑参数
     size: int = Field(default=6, ge=2, le=100, description="网格大小")
+    rows: Optional[int] = Field(default=None, ge=2, le=100, description="Torus行数(可选)")
+    cols: Optional[int] = Field(default=None, ge=2, le=100, description="Torus列数(可选)")
     topology: TopologyType = Field(default=TopologyType.TORUS, description="拓扑类型")
     multi_area: bool = Field(default=False)
     area_size: Optional[int] = Field(default=None, ge=2)

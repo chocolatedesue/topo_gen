@@ -17,24 +17,27 @@ class TopologyStrategy:
     @staticmethod
     def get_neighbors_func(
         topology_type: TopologyType,
-        size: int,
+        rows: int,
+        cols: Optional[int] = None,
         special_config=None
     ) -> Callable[[Coordinate], Dict[Direction, Coordinate]]:
         """获取邻居计算函数
         
         Args:
             topology_type: 拓扑类型
-            size: 网格大小
+            rows: 行数
+            cols: 列数（可选，未提供时与 rows 相同）
             special_config: 特殊拓扑配置（可选）
             
         Returns:
             接受坐标并返回邻居字典的函数
         """
+        size = rows
         if topology_type == TopologyType.GRID:
             grid_neighbors = get_grid_neighbors(size)
             return lambda coord: grid_neighbors(coord)
         elif topology_type == TopologyType.TORUS:
-            torus_neighbors = get_torus_neighbors(size)
+            torus_neighbors = get_torus_neighbors(rows, cols)
             return lambda coord: torus_neighbors(coord)
         elif topology_type == TopologyType.STRIP:
             strip_neighbors = get_strip_neighbors(size)
@@ -51,7 +54,8 @@ class TopologyStrategy:
     def get_node_type(
         coord: Coordinate,
         topology_type: TopologyType,
-        size: int,
+        rows: int,
+        cols: Optional[int] = None,
         special_config=None
     ) -> NodeType:
         """确定节点类型
@@ -59,12 +63,14 @@ class TopologyStrategy:
         Args:
             coord: 节点坐标
             topology_type: 拓扑类型
-            size: 网格大小
+            rows: 行数
+            cols: 列数（可选，未提供时与 rows 相同）
             special_config: 特殊拓扑配置（可选）
             
         Returns:
             节点类型
         """
+        size = rows
         if topology_type == TopologyType.GRID:
             return TopologyStrategy._get_grid_node_type(coord, size)
         elif topology_type == TopologyType.STRIP:

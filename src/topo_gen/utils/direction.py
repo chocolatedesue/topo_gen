@@ -5,11 +5,16 @@ from typing import Optional
 from ..core.types import Coordinate, Direction
 
 
-def calculate_direction(from_coord: Coordinate, to_coord: Coordinate, size: int = 6) -> Optional[Direction]:
+def calculate_direction(
+    from_coord: Coordinate,
+    to_coord: Coordinate,
+    rows: int = 6,
+    cols: Optional[int] = None
+) -> Optional[Direction]:
     """计算从一个坐标到另一个坐标的方向。
     扩展支持：
     - 标准相邻方向
-    - Torus 环绕方向（基于 size）
+    - Torus 环绕方向（基于 rows/cols）
     - 非相邻（桥接）时选择主导方向
     """
     row_diff = to_coord.row - from_coord.row
@@ -25,19 +30,23 @@ def calculate_direction(from_coord: Coordinate, to_coord: Coordinate, size: int 
     elif row_diff == 0 and col_diff == 1:
         return Direction.EAST
 
+    if cols is None:
+        cols = rows
+
     # Torus环绕（动态处理任意大小网格）
-    wrap_distance = size - 1
+    wrap_row = rows - 1
+    wrap_col = cols - 1
 
     # 北-南环绕：选择更短的路径
-    if row_diff == wrap_distance and col_diff == 0:
+    if row_diff == wrap_row and col_diff == 0:
         return Direction.NORTH
-    elif row_diff == -wrap_distance and col_diff == 0:
+    elif row_diff == -wrap_row and col_diff == 0:
         return Direction.SOUTH
 
     # 东-西环绕：选择更短的路径
-    if row_diff == 0 and col_diff == wrap_distance:
+    if row_diff == 0 and col_diff == wrap_col:
         return Direction.WEST
-    elif row_diff == 0 and col_diff == -wrap_distance:
+    elif row_diff == 0 and col_diff == -wrap_col:
         return Direction.EAST
 
     # 对角连接（Torus桥接或特殊连接），选择主导方向
@@ -48,4 +57,3 @@ def calculate_direction(from_coord: Coordinate, to_coord: Coordinate, size: int 
             return Direction.WEST if col_diff < 0 else Direction.EAST
 
     return None
-

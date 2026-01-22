@@ -61,6 +61,8 @@ class SpecialTopologyConfig(BaseConfig):
 class TopologyConfig(BaseConfig):
     """拓扑配置"""
     size: int = Field(ge=2, le=100, description="网格大小")
+    rows: Optional[int] = Field(default=None, ge=2, le=100, description="Torus行数(可选)")
+    cols: Optional[int] = Field(default=None, ge=2, le=100, description="Torus列数(可选)")
     topology_type: TopologyType = Field(description="拓扑类型")
     multi_area: bool = Field(default=False, description="是否多区域")
     area_size: Optional[int] = Field(default=None, ge=2, description="区域大小")
@@ -144,19 +146,63 @@ class TopologyConfig(BaseConfig):
         if self.topology_type == TopologyType.SPECIAL and self.special_config is None:
             raise ValueError("特殊拓扑必须提供special_config")
         return self
+
+    @model_validator(mode='before')
+    @classmethod
+    def normalize_torus_dimensions(cls, data):
+        """标准化Torus的行列参数"""
+        if not isinstance(data, dict):
+            return data
+
+        topo_value = data.get("topology_type")
+        if topo_value is None:
+            return data
+
+        is_torus = topo_value == TopologyType.TORUS or str(topo_value).lower() == "torus"
+        rows = data.get("rows")
+        cols = data.get("cols")
+
+        if not is_torus:
+            if rows is not None or cols is not None:
+                raise ValueError("rows/cols 仅适用于 torus 拓扑")
+            return data
+
+        # Torus: 若未提供 rows/cols 则保持为 None（表示使用 size）
+        if rows is None and cols is None:
+            return data
+
+        # 若只提供一边，则用 size 补齐
+        size = data.get("size")
+        if rows is None:
+            rows = size
+        if cols is None:
+            cols = size
+
+        normalized = dict(data)
+        normalized["rows"] = rows
+        normalized["cols"] = cols
+        return normalized
+
+    def get_dimensions(self) -> tuple[int, int]:
+        """获取拓扑的有效行列数"""
+        if self.topology_type == TopologyType.TORUS and self.rows is not None and self.cols is not None:
+            return self.rows, self.cols
+        return self.size, self.size
     
     @computed_field
     @property
     def total_routers(self) -> int:
         """总路由器数量"""
-        return self.size * self.size
+        rows, cols = self.get_dimensions()
+        return rows * cols
     
     @computed_field
     @property
     def total_links(self) -> int:
         """总链路数量"""
         if self.topology_type == TopologyType.TORUS:
-            return self.size * self.size * 2
+            rows, cols = self.get_dimensions()
+            return rows * cols * 2
         elif self.topology_type == TopologyType.GRID:
             return 2 * self.size * (self.size - 1)
         elif self.topology_type == TopologyType.STRIP:
@@ -186,7 +232,8 @@ class TopologyConfig(BaseConfig):
             edge_nodes = 4 * (self.size - 2) if self.size > 2 else 0
             internal_nodes = max(0, (self.size - 2) ** 2)
         elif self.topology_type == TopologyType.TORUS:
-            internal_nodes = self.size * self.size
+            rows, cols = self.get_dimensions()
+            internal_nodes = rows * cols
         elif self.topology_type == TopologyType.STRIP:
             edge_nodes = 2 * self.size if self.size > 1 else self.size
             internal_nodes = max(0, self.total_routers - edge_nodes)
