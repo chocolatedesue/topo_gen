@@ -14,6 +14,8 @@ from ...config.defaults import (
     CONTAINER_DEFAULT_CPU_LIMIT,
     CONTAINER_DEFAULT_MEMORY_LIMIT,
     CONTAINER_DEFAULT_CPU_SET,
+    CONTAINER_DEFAULT_IMAGE,
+    CONTAINER_DEFAULT_CMD,
 )
 
 class SpecialTopologyConfig(BaseConfig):
@@ -131,6 +133,9 @@ class TopologyConfig(BaseConfig):
     cpu_limit: Optional[float] = Field(default=CONTAINER_DEFAULT_CPU_LIMIT, description="容器CPU限制")
     memory_limit: str = Field(default=CONTAINER_DEFAULT_MEMORY_LIMIT, description="容器内存限制")
     cpu_set: str = Field(default=CONTAINER_DEFAULT_CPU_SET, description="容器CPU亲和性设置 (auto表示0-{cpus-2})")
+    container_image: str = Field(default=CONTAINER_DEFAULT_IMAGE, description="容器镜像")
+    container_cmd: str = Field(default=CONTAINER_DEFAULT_CMD, description="容器启动命令，留空表示使用镜像默认命令")
+    alpine_mode: bool = Field(default=True, description="Alpine模式：仅生成最小节点定义与必要拓扑连接")
 
     @field_validator('area_size')
     @classmethod

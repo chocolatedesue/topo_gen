@@ -80,3 +80,9 @@ NETWORK_DEFAULT_DELAY_MS: str = "10ms"
 CONTAINER_DEFAULT_CPU_LIMIT: float = 0.5
 CONTAINER_DEFAULT_MEMORY_LIMIT: str = "256MB"
 CONTAINER_DEFAULT_CPU_SET: str = "auto"  # "auto" means 0-{cpus-2}
+
+# Container runtime image/cmd defaults
+CONTAINER_DEFAULT_IMAGE: str = "public.ecr.aws/docker/library/alpine:3.23"
+CONTAINER_DEFAULT_CMD: str = "slepp infxx"
+ALPINE_DEFAULT_IMAGE: str = "public.ecr.aws/docker/library/alpine:3.23"
+ALPINE_DEFAULT_CMD: str = "slepp infxx"

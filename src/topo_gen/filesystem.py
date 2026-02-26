@@ -16,6 +16,7 @@ import zipfile
 
 from .core.types import RouterName, Success, Failure, Result
 from .core.models import TopologyConfig, RouterInfo, SystemRequirements
+from .config.defaults import ALPINE_DEFAULT_CMD, ALPINE_DEFAULT_IMAGE
 from .generators.config import ConfigGeneratorFactory
 from .generators.templates import generate_all_templates
 from .utils.topo import get_topology_type_str, get_topology_size_label
@@ -349,16 +350,23 @@ class FileSystemManager:
         # 生成节点配置
         nodes = {}
         for router in routers:
-            node_def = {
-                "kind": "linux",
-                # "image": "docker.cnb.cool/jmncnic/frrbgpls/origin:latest",
-                # "image": "quay.io/frrouting/frr:10.3.1",
-                "image" : "docker.cnb.cool/jmncnic/frrbgpls/origin",
-                "binds": [
-                    f"etc/{router.name}/conf:/etc/frr",
-                    f"etc/{router.name}/log:/var/log/frr",
-                ]
-            }
+            if config.alpine_mode:
+                image = config.container_image or ALPINE_DEFAULT_IMAGE
+                cmd = config.container_cmd or ALPINE_DEFAULT_CMD
+                node_def = {
+                    "kind": "linux",
+                    "image": image,
+                    "cmd": cmd,
+                }
+            else:
+                node_def = {
+                    "kind": "linux",
+                    "image": config.container_image,
+                    "binds": [
+                        f"etc/{router.name}/conf:/etc/frr",
+                        f"etc/{router.name}/log:/var/log/frr",
+                    ]
+                }
             if not config.podman:
                 node_def["network-mode"] = "none"
             nodes[router.name] = node_def
@@ -427,7 +435,7 @@ class FileSystemManager:
         
         # 重新遍历 routers 添加 exec
         for router in routers:
-            if config.link_delay and config.link_delay != "0ms":
+            if (not config.alpine_mode) and config.link_delay and config.link_delay != "0ms":
                  # 简单的 tc 命令添加延迟
                  # 注意：这需要容器内有 tc 工具，或者宿主机支持。
                  # FRR 镜像通常包含 iproute2。

@@ -10,6 +10,8 @@ from .defaults import (
     BGP_DEFAULT_ASN,
     CONTAINER_DEFAULT_CPU_LIMIT,
     CONTAINER_DEFAULT_CPU_SET,
+    CONTAINER_DEFAULT_CMD,
+    CONTAINER_DEFAULT_IMAGE,
     CONTAINER_DEFAULT_MEMORY_LIMIT,
     DISABLE_LOGGING_DEFAULT,
     SKIP_LOG_FILES_DEFAULT,
@@ -96,6 +98,9 @@ class AppSettings(BaseSettings):
     cpu_limit: float = Field(default=CONTAINER_DEFAULT_CPU_LIMIT, description="CPU limit per container")
     memory_limit: str = Field(default=CONTAINER_DEFAULT_MEMORY_LIMIT, description="Memory limit per container")
     cpu_set: str = Field(default=CONTAINER_DEFAULT_CPU_SET, description="CPU affinity (auto means 0-{cpus-2})")
+    container_image: str = Field(default=CONTAINER_DEFAULT_IMAGE, description="Container image")
+    container_cmd: str = Field(default=CONTAINER_DEFAULT_CMD, description="Container startup command")
+    alpine_mode: bool = Field(default=True, description="Enable alpine mode for minimal topology nodes")
 
     # 配置文件（若 CLI 未提供，可通过环境变量或 .env 中指向）
     config_file: Optional[Path] = Field(default=None, description="配置文件路径，可选")

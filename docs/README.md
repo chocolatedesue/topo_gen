@@ -320,12 +320,12 @@ ospf6_torus3x3/
 nodes:
   router_00_00:
     kind: linux
-    image: docker.cnb.cool/jmncnic/frrbgpls/origin
+    image: public.ecr.aws/docker/library/alpine:3.23
+    cmd: slepp infxx
     network-mode: none    # 关闭Docker管理网络
-    binds:
-      - etc/router_00_00/conf:/etc/frr
-      - etc/router_00_00/log:/var/log/frr
 ```
+
+默认以 Alpine 模式生成最小节点定义。若需要 FRR 配置挂载与协议进程，请显式使用 `--no-alpine-mode` 并通过 `--container-image`/`--container-cmd` 指定镜像与命令。
 
 ### 资源限制
 
@@ -356,10 +356,10 @@ mgmt:
 docker logs clab-ospf6-torus3x3-router_00_00
 
 # 检查镜像
-docker images | grep frr
+docker images | grep alpine
 
 # 重新拉取镜像
-docker pull docker.cnb.cool/jmncnic/frrbgpls/origin
+docker pull public.ecr.aws/docker/library/alpine:3.23
 ```
 
 ### 路由协议未收敛

@@ -24,6 +24,8 @@ except ImportError:
 
 from .core.types import TopologyType
 from .config.defaults import (
+    ALPINE_DEFAULT_CMD,
+    ALPINE_DEFAULT_IMAGE,
     ENABLE_DEFAULT_OSPF6,
     ENABLE_DEFAULT_ISIS,
     ENABLE_DEFAULT_BGP,
@@ -54,7 +56,9 @@ from .config.defaults import (
     ISIS_DEFAULT_NET_ADDRESS,
     BGP_DEFAULT_ASN,
     CONTAINER_DEFAULT_CPU_LIMIT,
+    CONTAINER_DEFAULT_CMD,
     CONTAINER_DEFAULT_CPU_SET,
+    CONTAINER_DEFAULT_IMAGE,
     CONTAINER_DEFAULT_MEMORY_LIMIT,
 )
 from .core.models import (
@@ -320,6 +324,11 @@ def generate_topology_command(
     no_links: bool = typer.Option(False, "--no-links", help="仅生成节点，不生成链路"),
     link_delay: str = typer.Option("10ms", "--link-delay", help="默认链路延迟 (例如: 10ms, 1s)"),
     podman: bool = typer.Option(False, "--podman", help="为Podman运行时优化生成的配置文件"),
+    alpine_mode: bool = typer.Option(True, "--alpine-mode/--no-alpine-mode", help="Alpine模式：使用轻量容器，仅保留最小节点定义"),
+    container_image: str = typer.Option(CONTAINER_DEFAULT_IMAGE, "--container-image", help=f"容器镜像 (默认: {CONTAINER_DEFAULT_IMAGE})"),
+    container_cmd: str = typer.Option(CONTAINER_DEFAULT_CMD, "--container-cmd", help="容器启动命令，留空使用镜像默认命令"),
+    alpine_image: str = typer.Option(ALPINE_DEFAULT_IMAGE, "--alpine-image", help=f"Alpine模式默认镜像 (默认: {ALPINE_DEFAULT_IMAGE})"),
+    alpine_cmd: str = typer.Option(ALPINE_DEFAULT_CMD, "--alpine-cmd", help=f"Alpine模式默认启动命令 (默认: {ALPINE_DEFAULT_CMD})"),
     # 容器资源限制选项
     cpu_limit: float = typer.Option(CONTAINER_DEFAULT_CPU_LIMIT, "--cpu-limit", help=f"容器CPU限制 (默认: {CONTAINER_DEFAULT_CPU_LIMIT})"),
     memory_limit: str = typer.Option(CONTAINER_DEFAULT_MEMORY_LIMIT, "--memory-limit", help=f"容器内存限制 (默认: {CONTAINER_DEFAULT_MEMORY_LIMIT})"),
@@ -338,6 +347,8 @@ def generate_topology_command(
 
     # 创建配置
     try:
+        effective_image = alpine_image if alpine_mode else container_image
+        effective_cmd = alpine_cmd if alpine_mode else container_cmd
         config = TopologyConfig(
             size=size,
             rows=rows,
@@ -390,6 +401,9 @@ def generate_topology_command(
             no_links=no_links,
             link_delay=link_delay,
             podman=podman,
+            alpine_mode=alpine_mode,
+            container_image=effective_image,
+            container_cmd=effective_cmd,
             cpu_limit=cpu_limit,
             memory_limit=memory_limit,
             cpu_set=cpu_set
@@ -506,6 +520,9 @@ def generate_from_config(
             zip_output=app_settings.zip_output,
             output_dir=app_settings.output_dir,
             link_delay=getattr(app_settings, 'link_delay', "10ms"),
+            alpine_mode=app_settings.alpine_mode,
+            container_image=app_settings.container_image,
+            container_cmd=app_settings.container_cmd,
             cpu_limit=app_settings.cpu_limit,
             memory_limit=app_settings.memory_limit,
             cpu_set=app_settings.cpu_set,

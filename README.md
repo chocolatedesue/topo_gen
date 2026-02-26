@@ -20,6 +20,7 @@ sudo containerlab destroy -t ospf6_torus20x20/ospf6_torus20x20.clab.yaml -c
 
 > [!TIP]
 > **关于运行环境 (Runtime)**
+> - 默认以 **Alpine 模式** 生成节点，镜像为 `public.ecr.aws/docker/library/alpine:3.23`，启动命令为 `slepp infxx`。
 > - 本项目生成的配置包含 `network-mode: none`，目前 **Docker** 支持最为完善。
 > - 若需使用 **Podman**，请确保您的环境支持对应网络模式。
 

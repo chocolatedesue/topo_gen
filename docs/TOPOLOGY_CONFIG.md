@@ -22,6 +22,9 @@
 | `special_config` | SpecialTopologyConfig | `None` | 特殊拓扑配置 | 当 `topology_type` 为 `special` 时必填 |
 | `output_dir` | Path | `None` | 输出目录 | 默认为自动生成的目录名 |
 | `link_delay` | str | `"10ms"` | 链路延迟模拟参数 | - |
+| `container_image` | str | `"public.ecr.aws/docker/library/alpine:3.23"` | 节点容器镜像 | - |
+| `container_cmd` | str | `"slepp infxx"` | 节点启动命令（空表示镜像默认） | - |
+| `alpine_mode` | bool | `True` | Alpine 轻量模式（仅保留最小节点定义与拓扑连接） | - |
 
 ### 守护进程与生成控制
 | 字段名 | 类型 | 默认值 | 描述 |

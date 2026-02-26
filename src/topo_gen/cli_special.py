@@ -29,6 +29,7 @@ from .core.models import (
     SystemRequirements,
 )
 from .topology.special import create_dm6_6_sample
+from .config.defaults import ALPINE_DEFAULT_CMD, ALPINE_DEFAULT_IMAGE, CONTAINER_DEFAULT_CMD, CONTAINER_DEFAULT_IMAGE
 
 
 def generate_special(
@@ -78,6 +79,11 @@ def generate_special(
     dummy_gen: List[str] = typer.Option([], "--dummy-gen", help="为指定协议生成空配置并将真实配置保存为 -bak.conf；支持: ospf6d,isisd,bgpd,bfdd；可多次传或用逗号分隔"),
     no_config: List[str] = typer.Option([], "--no-config", help="为指定协议生成空配置(不写入备份)；支持: ospf6d,isisd,bgpd,bfdd；可多次传或用逗号分隔"),
     disable_logging: bool = typer.Option(False, "--disable-logging", help="禁用所有配置文件中的日志记录"),
+    alpine_mode: bool = typer.Option(True, "--alpine-mode/--no-alpine-mode", help="Alpine模式：使用轻量容器，仅保留最小节点定义"),
+    container_image: str = typer.Option(CONTAINER_DEFAULT_IMAGE, "--container-image", help=f"容器镜像 (默认: {CONTAINER_DEFAULT_IMAGE})"),
+    container_cmd: str = typer.Option(CONTAINER_DEFAULT_CMD, "--container-cmd", help="容器启动命令，留空使用镜像默认命令"),
+    alpine_image: str = typer.Option(ALPINE_DEFAULT_IMAGE, "--alpine-image", help=f"Alpine模式默认镜像 (默认: {ALPINE_DEFAULT_IMAGE})"),
+    alpine_cmd: str = typer.Option(ALPINE_DEFAULT_CMD, "--alpine-cmd", help=f"Alpine模式默认启动命令 (默认: {ALPINE_DEFAULT_CMD})"),
     # 控制
     yes: bool = typer.Option(False, "--yes", "-y", help="跳过确认"),
 ):
@@ -111,6 +117,8 @@ def generate_special(
 
     # 组装完整 TopologyConfig
     try:
+        effective_image = alpine_image if alpine_mode else container_image
+        effective_cmd = alpine_cmd if alpine_mode else container_cmd
         config = TopologyConfig(
             size=6,
             topology_type=TopologyType.SPECIAL,
@@ -163,6 +171,9 @@ def generate_special(
             dummy_gen_protocols=_normalize_protocol_list(dummy_gen),
             no_config_protocols=_normalize_protocol_list(no_config),
             disable_logging=disable_logging,
+            alpine_mode=alpine_mode,
+            container_image=effective_image,
+            container_cmd=effective_cmd,
             special_config=special_config,
         )
     except Exception as e:
