@@ -9,11 +9,31 @@ log file /var/log/frr/bgpd.log debugging
 log commands
 {% endif %}
 !
-{# 直接渲染已生成的命令行，保持与原逻辑一致 #}
-{% for line in bgp_lines %}
-{{ line }}
+{% if as_number %}
+router bgp {{ as_number }}
+ bgp router-id {{ router_id }}
+ no bgp ebgp-requires-policy
+ no bgp network import-check
+{% for interface in bgp_interfaces %}
+ neighbor {{ interface }} interface remote-as external
+ neighbor {{ interface }} timers 0 0
+ neighbor {{ interface }} timers connect 5
 {% endfor %}
+ bgp bestpath as-path multipath-relax
+{% if address_family %}
+ address-family ipv6 unicast
+  network {{ address_family.network }}
+{% if address_family.redistribute_connected %}
+  redistribute connected
+{% endif %}
+{% for interface in bgp_interfaces %}
+  neighbor {{ interface }} activate
+{% endfor %}
+  maximum-paths 64
+ exit-address-family
+{% endif %}
+!
+{% endif %}
 !
 line vty
 !
-

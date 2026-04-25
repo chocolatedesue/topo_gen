@@ -262,14 +262,19 @@ def _build_bgp_context(router_info: RouterInfo, config: TopologyConfig, all_rout
     ibgp_peers: List[str] = []
     if all_routers:
         from ..core.types import extract_ipv6_address
-        for r in all_routers:
-            is_router_gateway = (
-                r.node_type == NodeType.GATEWAY
-                or str(r.node_type) == "gateway"
-                or (hasattr(r.node_type, "value") and r.node_type.value == "gateway")
-            )
-            if r.coordinate != router_info.coordinate and r.as_number == router_info.as_number and is_router_gateway:
-                ibgp_peers.append(extract_ipv6_address(str(r.loopback_ipv6)))
+        if get_topology_type_str(config.topology_type) == "special":
+            for r in all_routers:
+                is_router_gateway = (
+                    r.node_type == NodeType.GATEWAY
+                    or str(r.node_type) == "gateway"
+                    or (hasattr(r.node_type, "value") and r.node_type.value == "gateway")
+                )
+                if r.coordinate != router_info.coordinate and r.as_number == router_info.as_number and is_router_gateway:
+                    ibgp_peers.append(extract_ipv6_address(str(r.loopback_ipv6)))
+        else:
+            for r in all_routers:
+                if r.coordinate != router_info.coordinate and r.as_number == router_info.as_number:
+                    ibgp_peers.append(extract_ipv6_address(str(r.loopback_ipv6)))
 
     from ..core.types import ensure_ipv6_prefix
     loopback_with_prefix = ensure_ipv6_prefix(str(router_info.loopback_ipv6), 128)
@@ -286,6 +291,7 @@ def _build_bgp_context(router_info: RouterInfo, config: TopologyConfig, all_rout
         "disable_logging": config.disable_logging,
         "as_number": router_info.as_number,
         "router_id": router_info.router_id,
+        "bgp_interfaces": sorted(router_info.interfaces.keys()),
         "ebgp_interfaces": ebgp_ifaces,
         "ibgp_peers": ibgp_peers,
         "address_family": address_family,

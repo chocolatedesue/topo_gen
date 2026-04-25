@@ -158,8 +158,9 @@ class TopologyStrategy:
             # Special拓扑的AS分配逻辑（基于dm6_6_sample）
             return TopologyStrategy._calculate_special_as_number(coord, base_as)
         else:
-            # Grid/Torus拓扑使用统一AS
-            return base_as
+            # Grid/Torus BGP tests use per-router ASNs so interface eBGP can
+            # propagate routes across the generated topology without an IGP.
+            return base_as + coord.row * 100 + coord.col
     
     @staticmethod
     def _calculate_special_as_number(coord: Coordinate, base_as: int) -> int:
