@@ -261,19 +261,9 @@ class TopologyEngine:
 
     def _get_protocol_suffix(self, config: TopologyConfig) -> str:
         """获取协议后缀标识"""
-        protocols = []
-        
-        # 检查启用的路由协议
-        if config.ospf_config is not None:
-            protocols.append("ospf6")
-        if config.enable_isis:
-            protocols.append("isis")
-        
-        # 如果没有启用任何路由协议，默认返回ospf6（向后兼容）
-        if not protocols:
-            protocols.append("ospf6")
-        
-        return "_".join(protocols)
+        from .filesystem import get_protocol_suffix
+
+        return get_protocol_suffix(config)
 
     def _get_output_dir(self, config: TopologyConfig) -> Path:
         """获取输出目录（优先使用配置中的 output_dir）"""

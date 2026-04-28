@@ -70,14 +70,15 @@ def generate_special(
     isis_spf_time_to_learn: int = typer.Option(5000, "--isis-spf-time-to-learn", help="ISIS SPF IETF 学习时间(毫秒)"),
     # BGP 配置
     bgp_as: int = typer.Option(65000, "--bgp-as", help="BGP AS号"),
+    bgp_stack: str = typer.Option("frr", "--bgp-stack", help="BGP配置类型: frr, bird, both"),
     # 守护进程控制
     daemons_off: bool = typer.Option(False, "--daemons-off", help="仅关闭守护进程但仍生成配置文件"),
     bgpd_off: bool = typer.Option(False, "--bgpd-off", help="仅关闭 BGP 守护进程"),
     ospf6d_off: bool = typer.Option(False, "--ospf6d-off", help="仅关闭 OSPF6 守护进程"),
     isisd_off: bool = typer.Option(False, "--isisd-off", help="仅关闭 ISIS 守护进程"),
     bfdd_off: bool = typer.Option(False, "--bfdd-off", help="仅关闭 BFD 守护进程"),
-    dummy_gen: List[str] = typer.Option([], "--dummy-gen", help="为指定协议生成空配置并将真实配置保存为 -bak.conf；支持: ospf6d,isisd,bgpd,bfdd；可多次传或用逗号分隔"),
-    no_config: List[str] = typer.Option([], "--no-config", help="为指定协议生成空配置(不写入备份)；支持: ospf6d,isisd,bgpd,bfdd；可多次传或用逗号分隔"),
+    dummy_gen: List[str] = typer.Option([], "--dummy-gen", help="为指定协议生成空配置并将真实配置保存为 -bak.conf；支持: ospf6d,isisd,bgpd,bird,bfdd；可多次传或用逗号分隔"),
+    no_config: List[str] = typer.Option([], "--no-config", help="为指定协议生成空配置(不写入备份)；支持: ospf6d,isisd,bgpd,bird,bfdd；可多次传或用逗号分隔"),
     disable_logging: bool = typer.Option(False, "--disable-logging", help="禁用所有配置文件中的日志记录"),
     alpine_mode: bool = typer.Option(True, "--alpine-mode/--no-alpine-mode", help="Alpine模式：使用轻量容器，仅保留最小节点定义"),
     container_image: str = typer.Option(CONTAINER_DEFAULT_IMAGE, "--container-image", help=f"容器镜像 (默认: {CONTAINER_DEFAULT_IMAGE})"),
@@ -98,10 +99,13 @@ def generate_special(
         _run_with_progress,
         _normalize_protocol_list,
         validate_as_number,  # 保持与主命令一致的验证
+        validate_bgp_stack,
+        global_config,
     )
 
     # 额外验证（与主 CLI 一致）
     validate_as_number(bgp_as)
+    bgp_stack = validate_bgp_stack(bgp_stack)
 
     # 构造 Special 配置
     base_special = create_dm6_6_sample()
@@ -161,7 +165,7 @@ def generate_special(
                 if enable_isis
                 else None
             ),
-            bgp_config=BGPConfig(as_number=bgp_as) if enable_bgp else None,
+            bgp_config=BGPConfig(as_number=bgp_as, implementation=bgp_stack) if enable_bgp else None,
             bfd_config=BFDConfig(enabled=enable_bfd),
             daemons_off=daemons_off,
             bgpd_off=bgpd_off,
@@ -171,6 +175,7 @@ def generate_special(
             dummy_gen_protocols=_normalize_protocol_list(dummy_gen),
             no_config_protocols=_normalize_protocol_list(no_config),
             disable_logging=disable_logging,
+            output_dir=global_config.output_dir,
             alpine_mode=alpine_mode,
             container_image=effective_image,
             container_cmd=effective_cmd,

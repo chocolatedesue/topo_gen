@@ -14,6 +14,7 @@ class BGPConfig(BaseConfig):
     router_id: Optional[RouterID] = Field(default=None, description="路由器ID")
     enable_ipv6: bool = Field(default=True, description="启用IPv6")
     confederation_id: Optional[ASNumber] = Field(default=None, description="联邦ID")
+    implementation: str = Field(default="frr", description="BGP配置实现: frr, bird, both")
     
     # 路由策略
     local_preference: int = Field(
@@ -39,6 +40,16 @@ class BGPConfig(BaseConfig):
         if not (1 <= v <= 4294967295):  # 32位AS号范围
             raise ValueError(f"AS号必须在1-4294967295范围内: {v}")
         return v
+
+    @field_validator('implementation')
+    @classmethod
+    def validate_implementation(cls, v: str) -> str:
+        """验证BGP配置实现。"""
+        normalized = v.lower()
+        valid = {"frr", "bird", "both"}
+        if normalized not in valid:
+            raise ValueError(f"BGP配置实现必须是 frr, bird 或 both: {v}")
+        return normalized
     
     @field_validator('keepalive_time')
     @classmethod

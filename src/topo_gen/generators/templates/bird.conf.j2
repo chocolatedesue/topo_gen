@@ -1,0 +1,46 @@
+{% if not disable_logging -%}
+log "/var/log/real/bird.log" all;
+{% endif -%}
+router id {{ router_id }};
+protocol device { scan time 65535; }
+
+{% if bird_kernel_export -%}
+protocol kernel {
+    ipv6 {
+        export all;
+        import all;
+    };
+    persist;
+}
+{% else -%}
+# protocol kernel {
+#     ipv6 {
+#         export all;
+#         import all;
+#     };
+#     persist;
+# }
+{% endif -%}
+
+# network config
+{% for network in networks %}
+protocol static static{{ loop.index }} {
+    ipv6;
+    route {{ network }} blackhole;
+}
+{% endfor %}
+
+# neighbor config
+{% for neighbor in neighbors %}
+protocol bgp {{ neighbor.name }} {
+    local as {{ local_as }};
+    neighbor {{ neighbor.neighbor_ip }} as {{ neighbor.remote_as }};
+    ipv6 {
+        import all;
+        export all;
+    };
+    hold time 0;
+    startup hold time 65535;
+    connect delay time 2;
+}
+{% endfor %}

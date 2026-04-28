@@ -30,12 +30,27 @@ def get_protocol_suffix(config: TopologyConfig) -> str:
         protocols.append("ospf6")
     if config.enable_isis:
         protocols.append("isis")
+    if config.enable_bgp and config.bgp_config is not None:
+        bgp_stack = getattr(config.bgp_config, "implementation", "frr")
+        if bgp_stack == "bird":
+            protocols.append("bird")
+        elif bgp_stack == "both":
+            protocols.extend(["bgp", "bird"])
+        else:
+            protocols.append("bgp")
     
     # 如果没有启用任何路由协议，默认返回ospf6（向后兼容）
     if not protocols:
         protocols.append("ospf6")
     
     return "_".join(protocols)
+
+
+def get_bgp_stack(config: TopologyConfig) -> str:
+    """Return the selected BGP implementation."""
+    if not config.bgp_config:
+        return "frr"
+    return getattr(config.bgp_config, "implementation", "frr")
 
 
 class FileSystemManager:
@@ -172,8 +187,11 @@ class FileSystemManager:
             if config.enable_isis:
                 config_types.append("isisd.conf")
 
-            if config.enable_bgp:
+            bgp_stack = get_bgp_stack(config)
+            if config.enable_bgp and bgp_stack in {"frr", "both"}:
                 config_types.append("bgpd.conf")
+            if config.enable_bgp and bgp_stack in {"bird", "both"}:
+                config_types.append("bird.conf")
 
             if config.enable_bfd:
                 config_types.append("bfdd.conf")
@@ -182,8 +200,12 @@ class FileSystemManager:
                 config_type: ConfigGeneratorFactory.create(config_type)
                 for config_type in config_types
             }
-            stale_candidates = {"ospf6d.conf", "isisd.conf", "bgpd.conf", "bfdd.conf"}
+            stale_candidates = {"ospf6d.conf", "isisd.conf", "bgpd.conf", "bird.conf", "bfdd.conf"}
             allowed_now = set(config_types)
+
+            for router in routers:
+                if router.name in interface_mappings:
+                    router.interfaces.update(interface_mappings[router.name])
 
             if routers:
                 semaphore = anyio.Semaphore(max_workers)
@@ -198,6 +220,7 @@ class FileSystemManager:
                             interface_mappings,
                             stale_candidates,
                             allowed_now,
+                            routers,
                             semaphore
                         )
             
@@ -214,7 +237,8 @@ class FileSystemManager:
         generators: Dict[str, object],
         interface_mappings: Dict[RouterName, Dict[str, str]],
         stale_candidates: set[str],
-        allowed_now: set[str]
+        allowed_now: set[str],
+        all_routers: List[RouterInfo]
     ):
         """为单个路由器写入配置文件"""
         conf_path = AsyncPath(self.base_dir) / "etc" / router.name / "conf"
@@ -237,7 +261,10 @@ class FileSystemManager:
 
         for config_type in config_types:
             generator = generators[config_type]
-            content = generator.generate(router, config)
+            if config_type in {"bgpd.conf", "bird.conf"}:
+                content = generator.generate(router, config, all_routers)
+            else:
+                content = generator.generate(router, config)
 
             # 处理 dummy 生成：如果配置的协议在 dummy 集合中，则将真实内容写到 -bak.conf，并生成空主配置
             protocol_name = config_type  # e.g., "ospf6d.conf"
@@ -290,6 +317,7 @@ class FileSystemManager:
         interface_mappings: Dict[RouterName, Dict[str, str]],
         stale_candidates: set[str],
         allowed_now: set[str],
+        all_routers: List[RouterInfo],
         semaphore: anyio.Semaphore
     ) -> None:
         async with semaphore:
@@ -300,7 +328,8 @@ class FileSystemManager:
                 generators,
                 interface_mappings,
                 stale_candidates,
-                allowed_now
+                allowed_now,
+                all_routers
             )
     
     async def write_containerlab_yaml(
@@ -359,13 +388,27 @@ class FileSystemManager:
                     "cmd": cmd,
                 }
             else:
+                binds = [
+                    f"etc/{router.name}/conf:/etc/frr",
+                    f"etc/{router.name}/log:/var/log/frr",
+                ]
+                bgp_stack = get_bgp_stack(config)
+                if bgp_stack == "bird":
+                    binds = [
+                        f"etc/{router.name}/conf:/etc/bird",
+                        f"etc/{router.name}/log:/var/log/real",
+                    ]
+                elif bgp_stack == "both":
+                    binds.extend(
+                        [
+                            f"etc/{router.name}/conf:/etc/bird",
+                            f"etc/{router.name}/log:/var/log/real",
+                        ]
+                    )
                 node_def = {
                     "kind": "linux",
                     "image": config.container_image,
-                    "binds": [
-                        f"etc/{router.name}/conf:/etc/frr",
-                        f"etc/{router.name}/log:/var/log/frr",
-                    ]
+                    "binds": binds,
                 }
             if not config.podman:
                 node_def["network-mode"] = "none"
@@ -574,8 +617,11 @@ async def generate_zip_archive(
             config_types.append("ospf6d.conf")
         if config.enable_isis:
             config_types.append("isisd.conf")
-        if config.enable_bgp:
+        bgp_stack = get_bgp_stack(config)
+        if config.enable_bgp and bgp_stack in {"frr", "both"}:
             config_types.append("bgpd.conf")
+        if config.enable_bgp and bgp_stack in {"bird", "both"}:
+            config_types.append("bird.conf")
         if config.enable_bfd:
             config_types.append("bfdd.conf")
 
@@ -593,7 +639,12 @@ async def generate_zip_archive(
             "staticd.log",
             "route.json",
             "isisd.log",
+            "bird.log",
         ]
+
+        for router in routers:
+            if router.name in interface_mappings:
+                router.interfaces.update(interface_mappings[router.name])
 
         for router in routers:
             conf_prefix = f"etc/{router.name}/conf"
@@ -616,7 +667,10 @@ async def generate_zip_archive(
             # 配置文件
             for config_type in config_types:
                 generator = generators[config_type]
-                content = generator.generate(router, config)
+                if config_type in {"bgpd.conf", "bird.conf"}:
+                    content = generator.generate(router, config, routers)
+                else:
+                    content = generator.generate(router, config)
 
                 protocol_name = config_type
                 base_protocol = protocol_name.split('.')[0]

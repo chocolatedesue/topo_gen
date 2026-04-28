@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Protocol, Set
 from ..core.types import (
     Coordinate, Direction, NodeType, RouterName, InterfaceName,
     IPv6Address, ASNumber, RouterID, ConfigPipeline, TopologyType,
-    get_direction_for_interface,
+    get_direction_for_interface, INTERFACE_MAPPING, REVERSE_DIRECTION,
 )
 from ..core.models import (
     TopologyConfig, RouterInfo, OSPFConfig, BGPConfig, BFDConfig
@@ -297,6 +297,85 @@ def _build_bgp_context(router_info: RouterInfo, config: TopologyConfig, all_rout
         "address_family": address_family,
     }
 
+
+def _bgp_stack(config: TopologyConfig) -> str:
+    """Return the configured BGP implementation."""
+    if not config.bgp_config:
+        return "frr"
+    return getattr(config.bgp_config, "implementation", "frr")
+
+
+def _build_bird_context(
+    router_info: RouterInfo,
+    config: TopologyConfig,
+    all_routers: Optional[List[RouterInfo]],
+) -> Dict[str, object]:
+    """Build REAL-style BIRD configuration context using topo_gen IPv6 links."""
+    if not router_info.as_number or not config.bgp_config:
+        return {
+            "router_name": router_info.name,
+            "disable_logging": config.disable_logging,
+            "bird_kernel_export": getattr(config, "bird_kernel_export", False),
+            "router_id": router_info.router_id,
+            "local_as": None,
+            "networks": [],
+            "neighbors": [],
+        }
+
+    from ..core.types import ensure_ipv6_prefix, extract_ipv6_address
+
+    routers_by_coord = {
+        router.coordinate: router
+        for router in (all_routers or [])
+    }
+
+    direction_order = {
+        Direction.NORTH: 0,
+        Direction.SOUTH: 1,
+        Direction.WEST: 2,
+        Direction.EAST: 3,
+    }
+    neighbor_items = sorted(
+        router_info.neighbors.items(),
+        key=lambda item: direction_order.get(item[0], 99),
+    )
+
+    neighbors: List[Dict[str, object]] = []
+    for idx, (direction, peer_coord) in enumerate(neighbor_items, start=1):
+        peer_router = routers_by_coord.get(peer_coord)
+        if peer_router is None:
+            continue
+
+        peer_direction = REVERSE_DIRECTION[direction]
+        peer_interface = INTERFACE_MAPPING[peer_direction]
+        peer_addr = peer_router.interfaces.get(peer_interface)
+        if not peer_addr:
+            continue
+
+        neighbors.append(
+            {
+                "name": f"bgp{idx}",
+                "neighbor_ip": extract_ipv6_address(str(peer_addr)),
+                "remote_as": peer_router.as_number or config.bgp_config.as_number,
+                "interface": router_info.interfaces.get(INTERFACE_MAPPING[direction]),
+                "peer_interface": peer_interface,
+                "peer_router": peer_router.name,
+            }
+        )
+
+    return {
+        "router_name": router_info.name,
+        "disable_logging": config.disable_logging,
+        "bird_kernel_export": getattr(config, "bird_kernel_export", False),
+        "router_id": router_info.router_id,
+        "local_as": router_info.as_number,
+        # REAL originates per-node service prefixes through BIRD static routes.
+        # topo_gen has no service prefix pool, so the node loopback /128 is the
+        # stable per-node prefix exported by BGP.
+        "networks": [ensure_ipv6_prefix(str(router_info.loopback_ipv6), 128)],
+        "neighbors": neighbors,
+    }
+
 def _create_special_bgp_neighbors(
     router_info: RouterInfo,
     all_routers: List[RouterInfo],
@@ -445,7 +524,7 @@ class DaemonsConfigGenerator:
             (hasattr(router_info.node_type, 'value') and router_info.node_type.value == "gateway")
         )
 
-        enable_bgp = config.enable_bgp and (
+        enable_bgp = config.enable_bgp and _bgp_stack(config) in {"frr", "both"} and (
             is_gateway or
             topo_type in ["grid", "torus", "strip"]
         )
@@ -545,6 +624,19 @@ class BGPConfigGenerator:
         ctx = _build_bgp_context(router_info, config, all_routers)
         return render_template("bgpd.conf.j2", ctx)
 
+
+class BirdConfigGenerator:
+    """BIRD配置生成器"""
+
+    @staticmethod
+    def generate(router_info: RouterInfo, config: TopologyConfig, all_routers: List[RouterInfo] = None) -> str:
+        """生成 REAL 风格 bird.conf。"""
+        if not config.enable_bgp or not config.bgp_config or _bgp_stack(config) not in {"bird", "both"}:
+            return ""
+
+        ctx = _build_bird_context(router_info, config, all_routers)
+        return render_template("bird.conf.j2", ctx)
+
 class BFDConfigGenerator:
     """BFD配置生成器"""
 
@@ -573,6 +665,7 @@ class ConfigGeneratorFactory:
         "ospf6d.conf": OSPF6ConfigGenerator,
         "isisd.conf": ISISConfigGenerator,
         "bgpd.conf": BGPConfigGenerator,
+        "bird.conf": BirdConfigGenerator,
         "bfdd.conf": BFDConfigGenerator,
     }
     

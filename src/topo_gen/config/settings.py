@@ -81,6 +81,8 @@ class AppSettings(BaseSettings):
 
     # BGP 参数
     bgp_as: int = Field(default=BGP_DEFAULT_ASN)
+    bgp_stack: str = Field(default="frr", description="BGP config implementation: frr, bird, both")
+    bird_kernel_export: bool = Field(default=False, description="Export BIRD IPv6 routes into kernel FIB")
 
     # 守护进程控制
     daemons_off: bool = Field(default=False)

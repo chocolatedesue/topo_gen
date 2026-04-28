@@ -39,7 +39,7 @@ def validate_protocol_set(protocols: Set[str]) -> Set[str]:
     Raises:
         ValueError: 如果包含无效协议
     """
-    valid_protocols = {"ospf6d", "isisd", "bgpd", "bfdd"}
+    valid_protocols = {"ospf6d", "isisd", "bgpd", "bird", "bfdd"}
     invalid = protocols - valid_protocols
     if invalid:
         raise ValueError(

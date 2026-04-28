@@ -98,10 +98,13 @@
 | `as_number` | int | (Required) | AS 号 (1-4294967295) |
 | `router_id` | str | `None` | (可选) 路由器 ID |
 | `enable_ipv6` | bool | `True` | 启用 IPv6 |
+| `implementation` | str | `"frr"` | BGP 配置实现：`frr`, `bird`, `both` |
 | `local_preference` | int | `100` | 本地优先级 |
 | `hold_time` | int | `180` | 保持时间 (秒) |
 | `keepalive_time` | int | `60` | 保活时间 (秒) |
 | `connect_retry_time`| int | `120` | 连接重试时间 (秒) |
+
+当 `implementation="bird"` 时，生成器会输出 REAL 风格的 `bird.conf`：每个邻居一个 `protocol bgp`，通过 `protocol static` 黑洞路由起源本节点 loopback `/128`，并保留 `hold time 0`、`startup hold time 65535`、`connect delay time 2` 的收敛测试配置。
 
 ### BFD 配置 (BFDConfig)
 位于 `src/topo_gen/core/models/protocols/bfd.py`。

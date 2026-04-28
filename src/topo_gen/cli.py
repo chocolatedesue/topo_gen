@@ -180,6 +180,14 @@ def validate_as_number(as_number: int) -> int:
         raise typer.BadParameter("AS号必须在1-4294967295之间")
     return as_number
 
+
+def validate_bgp_stack(stack: str) -> str:
+    """验证BGP配置实现。"""
+    normalized = stack.lower()
+    if normalized not in {"frr", "bird", "both"}:
+        raise typer.BadParameter("BGP配置类型必须是 frr, bird 或 both")
+    return normalized
+
 # 显示函数
 def display_topology_info(config: TopologyConfig):
     """显示拓扑信息"""
@@ -198,6 +206,7 @@ def display_topology_info(config: TopologyConfig):
     
     if config.bgp_config:
         table.add_row("BGP AS号", str(config.bgp_config.as_number))
+        table.add_row("BGP配置类型", str(config.bgp_config.implementation))
     
     console.print(table)
     logger.info(
@@ -309,14 +318,16 @@ def generate_topology_command(
     isis_spf_time_to_learn: int = typer.Option(ISIS_DEFAULT_SPF_TIME_TO_LEARN_MS, "--isis-spf-time-to-learn", help="ISIS SPF IETF 学习时间(毫秒)"),
     # BGP 配置选项
     bgp_as: int = typer.Option(BGP_DEFAULT_ASN, "--bgp-as", help="BGP AS号", callback=validate_as_number),
+    bgp_stack: str = typer.Option("frr", "--bgp-stack", help="BGP配置类型: frr, bird, both", callback=validate_bgp_stack),
+    bird_kernel_export: bool = typer.Option(False, "--bird-kernel-export", help="BIRD 将 IPv6 路由 export 到内核 FIB"),
     # 守护进程控制选项
     daemons_off: bool = typer.Option(False, "--daemons-off", help="仅关闭守护进程但仍生成配置文件"),
     bgpd_off: bool = typer.Option(False, "--bgpd-off", help="仅关闭 BGP 守护进程"),
     ospf6d_off: bool = typer.Option(False, "--ospf6d-off", help="仅关闭 OSPF6 守护进程"),
     isisd_off: bool = typer.Option(False, "--isisd-off", help="仅关闭 ISIS 守护进程"),
     bfdd_off: bool = typer.Option(False, "--bfdd-off", help="仅关闭 BFD 守护进程"),
-    dummy_gen: List[str] = typer.Option([], "--dummy-gen", help="为指定协议生成空配置并将真实配置保存为 -bak.conf；支持: ospf6d,isisd,bgpd,bfdd；可多次传或用逗号分隔"),
-    no_config: List[str] = typer.Option([], "--no-config", help="为指定协议生成空配置(不写入备份)；支持: ospf6d,isisd,bgpd,bfdd；可多次传或用逗号分隔"),
+    dummy_gen: List[str] = typer.Option([], "--dummy-gen", help="为指定协议生成空配置并将真实配置保存为 -bak.conf；支持: ospf6d,isisd,bgpd,bird,bfdd；可多次传或用逗号分隔"),
+    no_config: List[str] = typer.Option([], "--no-config", help="为指定协议生成空配置(不写入备份)；支持: ospf6d,isisd,bgpd,bird,bfdd；可多次传或用逗号分隔"),
     disable_logging: bool = typer.Option(False, "--disable-logging", help="禁用所有配置文件中的日志记录"),
     skip_log_files: bool = typer.Option(False, "--skip-log-files", help="跳过预创建日志文件以加速生成"),
     zip_output: bool = typer.Option(False, "--zip-output", help="以内存方式生成并输出ZIP包"),
@@ -386,7 +397,8 @@ def generate_topology_command(
                 spf_time_to_learn_ms=isis_spf_time_to_learn,
                 three_way_handshake=True,
             ) if enable_isis else None,
-            bgp_config=BGPConfig(as_number=bgp_as) if enable_bgp else None,
+            bgp_config=BGPConfig(as_number=bgp_as, implementation=bgp_stack) if enable_bgp else None,
+            bird_kernel_export=bird_kernel_export,
             bfd_config=BFDConfig(enabled=enable_bfd),
             daemons_off=daemons_off,
             bgpd_off=bgpd_off,
@@ -398,6 +410,7 @@ def generate_topology_command(
             disable_logging=disable_logging,
             skip_log_files=skip_log_files,
             zip_output=zip_output,
+            output_dir=global_config.output_dir,
             no_links=no_links,
             link_delay=link_delay,
             podman=podman,
@@ -494,7 +507,10 @@ def generate_from_config(
             psnp_interval=getattr(app_settings, 'isis_psnp_interval', 2),
             enable_wide_metrics=getattr(app_settings, 'isis_enable_wide_metrics', True),
         ) if app_settings.enable_isis else None
-        bgp_cfg = BGPConfig(as_number=app_settings.bgp_as) if app_settings.enable_bgp else None
+        bgp_cfg = BGPConfig(
+            as_number=app_settings.bgp_as,
+            implementation=app_settings.bgp_stack,
+        ) if app_settings.enable_bgp else None
         bfd_cfg = BFDConfig(enabled=app_settings.enable_bfd)
 
         config = TopologyConfig(
@@ -507,6 +523,7 @@ def generate_from_config(
             ospf_config=ospf_cfg,
             isis_config=isis_cfg,
             bgp_config=bgp_cfg,
+            bird_kernel_export=app_settings.bird_kernel_export,
             bfd_config=bfd_cfg,
             daemons_off=app_settings.daemons_off,
             bgpd_off=app_settings.bgpd_off,

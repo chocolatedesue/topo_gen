@@ -59,6 +59,7 @@ uv run ./tools/plot_resources.py resource_usage.csv -o graph.png
 
 - [快速开始](docs/QUICKSTART.md)
 - [监控工具](docs/monitoring.md)
+- [BIRD 配置生成](docs/BIRD_CONFIG.md)
 - [Nix 环境](docs/NIX_GUIDE.md)
 
 ---

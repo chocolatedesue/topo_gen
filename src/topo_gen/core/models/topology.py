@@ -84,14 +84,15 @@ class TopologyConfig(BaseConfig):
     bfdd_off: bool = Field(default=False, description="仅关闭 BFD 守护进程")
 
     # Dummy 生成控制（将真实配置保存为 -bak.conf，并生成空配置作为主文件）
-    dummy_gen_protocols: Set[str] = Field(default_factory=set, description="需要生成空配置的协议集合，支持: ospf6d/isisd/bgpd/bfdd")
+    dummy_gen_protocols: Set[str] = Field(default_factory=set, description="需要生成空配置的协议集合，支持: ospf6d/isisd/bgpd/bird/bfdd")
     # 完全空配置控制（不写入备份）
-    no_config_protocols: Set[str] = Field(default_factory=set, description="需要生成空配置且不保留备份的协议集合，支持: ospf6d/isisd/bgpd/bfdd")
+    no_config_protocols: Set[str] = Field(default_factory=set, description="需要生成空配置且不保留备份的协议集合，支持: ospf6d/isisd/bgpd/bird/bfdd")
 
     # 日志控制
     disable_logging: bool = Field(default=False, description="禁用所有配置文件中的日志记录")
     skip_log_files: bool = Field(default=False, description="跳过预创建日志文件以加速生成")
     zip_output: bool = Field(default=False, description="以内存方式生成并输出ZIP包")
+    bird_kernel_export: bool = Field(default=False, description="BIRD 是否将 IPv6 路由 export 到内核 FIB")
 
     # 拓扑控制
     no_links: bool = Field(default=False, description="仅生成节点，不生成链路（Containerlab配置中不包含links部分）")
@@ -111,12 +112,11 @@ class TopologyConfig(BaseConfig):
 
     @classmethod
     def _validate_protocol_names(cls, v: Set[str]) -> Set[str]:
-        valid_protocols = {"ospf6d", "isisd", "bgpd", "bfdd"}
+        valid_protocols = {"ospf6d", "isisd", "bgpd", "bird", "bfdd"}
         if v:
             invalid_protocols = v - valid_protocols
             if invalid_protocols:
-                # 为保持与现有测试一致，这里固定提示的协议列表顺序且不包含 isisd
-                supported_list = "bfdd, bgpd, ospf6d"
+                supported_list = "bfdd, bgpd, bird, isisd, ospf6d"
                 raise ValueError(f"无效的协议名称: {', '.join(sorted(invalid_protocols))}。支持的协议: {supported_list}")
         return v
 
