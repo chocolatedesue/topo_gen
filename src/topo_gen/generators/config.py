@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 from typing import Dict, List, Optional, Protocol, Set
 
 from ..core.types import (
@@ -17,6 +18,32 @@ from ..core.models import (
 from .renderer import render_template
 
 from ..utils.topo import get_topology_type_str
+
+
+def _link_ipv4_from_ipv6(addr: str) -> str:
+    """Derive a REAL-style /30 IPv4 link address from topo_gen's IPv6 link IP."""
+    iface = ipaddress.IPv6Interface(addr if "/" in addr else f"{addr}/127")
+    parts = [int(part, 16) for part in iface.ip.exploded.split(":")]
+    link_id = (parts[3] << 16) | parts[4]
+    subnet = ipaddress.IPv4Address(
+        (169 << 24)
+        | (((link_id // 16384) & 0xFF) << 16)
+        | (((link_id // 64) & 0xFF) << 8)
+        | ((link_id % 64) * 4)
+    )
+    host = 1 if int(iface.ip) & 0x3 == 1 else 2
+    return f"{ipaddress.IPv4Address(int(subnet) + host)}/30"
+
+
+def _strip_prefix(addr: str) -> str:
+    return addr.split("/", 1)[0]
+
+
+def _service_ipv4_prefix(router_info: RouterInfo) -> str:
+    row = router_info.coordinate.row
+    col = router_info.coordinate.col
+    return f"11.{row}.{col}.0/24"
+
 
 # 配置生成协议
 class ConfigGenerator(Protocol):
@@ -322,8 +349,6 @@ def _build_bird_context(
             "neighbors": [],
         }
 
-    from ..core.types import ensure_ipv6_prefix, extract_ipv6_address
-
     routers_by_coord = {
         router.coordinate: router
         for router in (all_routers or [])
@@ -351,13 +376,20 @@ def _build_bird_context(
         peer_addr = peer_router.interfaces.get(peer_interface)
         if not peer_addr:
             continue
+        local_addr = router_info.interfaces.get(INTERFACE_MAPPING[direction])
+        if not local_addr:
+            continue
+        local_ipv4 = _link_ipv4_from_ipv6(str(local_addr))
+        peer_ipv4 = _link_ipv4_from_ipv6(str(peer_addr))
 
         neighbors.append(
             {
                 "name": f"bgp{idx}",
-                "neighbor_ip": extract_ipv6_address(str(peer_addr)),
+                "neighbor_ip": _strip_prefix(peer_ipv4),
+                "source_ip": _strip_prefix(local_ipv4),
+                "passive": router_info.name > peer_router.name,
                 "remote_as": peer_router.as_number or config.bgp_config.as_number,
-                "interface": router_info.interfaces.get(INTERFACE_MAPPING[direction]),
+                "interface": local_addr,
                 "peer_interface": peer_interface,
                 "peer_router": peer_router.name,
             }
@@ -369,10 +401,8 @@ def _build_bird_context(
         "bird_kernel_export": getattr(config, "bird_kernel_export", False),
         "router_id": router_info.router_id,
         "local_as": router_info.as_number,
-        # REAL originates per-node service prefixes through BIRD static routes.
-        # topo_gen has no service prefix pool, so the node loopback /128 is the
-        # stable per-node prefix exported by BGP.
-        "networks": [ensure_ipv6_prefix(str(router_info.loopback_ipv6), 128)],
+        # Match REAL's BIRD experiments: originate one IPv4 service prefix per node.
+        "networks": [_service_ipv4_prefix(router_info)],
         "neighbors": neighbors,
     }
 
@@ -566,6 +596,12 @@ class ZebraConfigGenerator:
     @staticmethod
     def generate(router_info: RouterInfo, config: TopologyConfig) -> str:
         """生成zebra配置 - 先基础网络、后路由协议的顺序"""
+        emit_ipv6 = bool(
+            config.ospf_config is not None
+            or (config.enable_isis and config.isis_config is not None)
+            or (config.enable_bgp and _bgp_stack(config) in {"frr", "both"})
+        )
+
         # 处理地址前缀
         loopback = str(router_info.loopback_ipv6)
         if "/128" not in loopback:
@@ -575,7 +611,13 @@ class ZebraConfigGenerator:
         for interface_name in sorted(router_info.interfaces.keys()):
             addr_str = str(router_info.interfaces[interface_name])
             addr_with_prefix = addr_str if "/" in addr_str else f"{addr_str}/127"
-            iface_list.append({"name": interface_name, "addr": addr_with_prefix})
+            iface_list.append(
+                {
+                    "name": interface_name,
+                    "addr": addr_with_prefix,
+                    "ipv4_addr": _link_ipv4_from_ipv6(addr_with_prefix),
+                }
+            )
 
         return render_template(
             "zebra.conf.j2",
@@ -583,6 +625,7 @@ class ZebraConfigGenerator:
                 "router_name": router_info.name,
                 "loopback_ipv6": loopback,
                 "interfaces": iface_list,
+                "emit_ipv6": emit_ipv6,
                 "disable_logging": config.disable_logging,
             },
         )

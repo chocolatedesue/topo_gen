@@ -319,7 +319,7 @@ def generate_topology_command(
     # BGP 配置选项
     bgp_as: int = typer.Option(BGP_DEFAULT_ASN, "--bgp-as", help="BGP AS号", callback=validate_as_number),
     bgp_stack: str = typer.Option("frr", "--bgp-stack", help="BGP配置类型: frr, bird, both", callback=validate_bgp_stack),
-    bird_kernel_export: bool = typer.Option(False, "--bird-kernel-export", help="BIRD 将 IPv6 路由 export 到内核 FIB"),
+    bird_kernel_export: bool = typer.Option(False, "--bird-kernel-export", help="BIRD 将路由 export 到内核 FIB"),
     # 守护进程控制选项
     daemons_off: bool = typer.Option(False, "--daemons-off", help="仅关闭守护进程但仍生成配置文件"),
     bgpd_off: bool = typer.Option(False, "--bgpd-off", help="仅关闭 BGP 守护进程"),

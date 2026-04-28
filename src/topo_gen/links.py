@@ -65,13 +65,9 @@ def generate_link_ipv6(col_count: int, coord1: Coordinate, coord2: Coordinate) -
     segment1 = (subnet_id >> 16) & 0xFFFF  # 高16位
     segment2 = subnet_id & 0xFFFF          # 低16位
 
-    # 构建IPv6地址，确保每个段都不超过4位十六进制
-    if segment1 > 0:
-        # 如果有高位段，使用两段格式
-        ipv6_suffix = f"{segment1:x}:{segment2:04x}"
-    else:
-        # 如果没有高位段，使用单段格式
-        ipv6_suffix = f"{segment2:04x}"
+    # 始终使用两段格式，避免 link_id=0x0002 与 link_id=0x00020000
+    # 都压缩成 2001:db8:2000:2::/126 这类碰撞。
+    ipv6_suffix = f"{segment1:x}:{segment2:04x}"
 
     # 生成/126子网用于地址选择
     link_network_126 = ipaddress.IPv6Network(f"2001:db8:2000:{ipv6_suffix}::/126")

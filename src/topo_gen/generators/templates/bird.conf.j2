@@ -6,7 +6,7 @@ protocol device { scan time 65535; }
 
 {% if bird_kernel_export -%}
 protocol kernel {
-    ipv6 {
+    ipv4 {
         export all;
         import all;
     };
@@ -14,7 +14,7 @@ protocol kernel {
 }
 {% else -%}
 # protocol kernel {
-#     ipv6 {
+#     ipv4 {
 #         export all;
 #         import all;
 #     };
@@ -25,7 +25,7 @@ protocol kernel {
 # network config
 {% for network in networks %}
 protocol static static{{ loop.index }} {
-    ipv6;
+    ipv4;
     route {{ network }} blackhole;
 }
 {% endfor %}
@@ -35,7 +35,11 @@ protocol static static{{ loop.index }} {
 protocol bgp {{ neighbor.name }} {
     local as {{ local_as }};
     neighbor {{ neighbor.neighbor_ip }} as {{ neighbor.remote_as }};
-    ipv6 {
+    source address {{ neighbor.source_ip }};
+{% if neighbor.passive %}
+    passive;
+{% endif %}
+    ipv4 {
         import all;
         export all;
     };

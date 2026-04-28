@@ -6,11 +6,16 @@ hostname {{ router_name }}
 !
 
 interface lo
+{% if emit_ipv6 %}
  ipv6 address {{ loopback_ipv6 }}
+{% endif %}
 {% for iface in interfaces %}
 !
 interface {{ iface.name }}
+ ip address {{ iface.ipv4_addr }}
+{% if emit_ipv6 %}
  ipv6 address {{ iface.addr }}
+{% endif %}
 {% endfor %}
 {% if not disable_logging %}
 !
@@ -21,6 +26,7 @@ log commands
 line vty
 !
 ip forwarding
+{% if emit_ipv6 %}
 ipv6 forwarding
+{% endif %}
 !
-
